@@ -20,8 +20,8 @@ export default function RootLayout({
         <html lang="en" className="dark">
             <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
                 <Suspense fallback={null}>
-
-                </Suspense>
+                    {children}
+                </Suspense >
             </body>
         </html>
     )
