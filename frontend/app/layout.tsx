@@ -7,9 +7,8 @@ import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
 
 export const metadata: Metadata = {
-    title: "Messenger Chat",
+    title: "PainChat",
     description: "A sleek, modern chat application",
-    generator: "v0.app",
 }
 
 export default function RootLayout({

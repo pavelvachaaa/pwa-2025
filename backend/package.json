@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon --env-file=.env src/index.js",
     "prod": "node --env-file=.env src/index.js",
+    "db:migrate": "node --env-file=.env src/database/migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Pavel Vácha",
@@ -14,13 +15,19 @@
     "nodemon": "^3.1.10"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "express": "^5.1.0",
+    "firebase-admin": "^13.5.0",
+    "google-auth-library": "^10.3.0",
     "jsonwebtoken": "^9.0.2",
     "module-alias": "^2.2.3",
+    "pg": "^8.16.3",
     "pino": "^9.11.0",
-    "pino-pretty": "^13.1.1"
+    "pino-pretty": "^13.1.1",
+    "zod": "^4.1.11"
   },
   "_moduleAliases": {
     "@": "src",

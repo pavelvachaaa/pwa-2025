@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
@@ -11,13 +11,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { MessageCircle, Mail } from "lucide-react"
+import { GoogleSignInButton } from "@/components/auth/google-signin-button"
+import { MessageCircle } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const { signIn, signInWithGoogle, isLoading } = useAuth()
+  const { signIn, isLoading } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,17 +33,16 @@ export default function LoginPage() {
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    try {
-      await signInWithGoogle()
-      router.push("/")
-    } catch (error) {
-      setError("Failed to sign in with Google")
-    }
-  }
+  const handleGoogleSuccess = useCallback(() => {
+    router.push("/")
+  }, [router])
+
+  const handleGoogleError = useCallback((error: string) => {
+    setError(error)
+  }, [])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -101,10 +101,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full bg-transparent" onClick={handleGoogleSignIn} disabled={isLoading}>
-            <Mail className="mr-2 h-4 w-4" />
-            Continue with Google
-          </Button>
+          <GoogleSignInButton
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+            disabled={isLoading}
+            className="w-full"
+          />
 
           <div className="text-center text-sm text-muted-foreground">
             {"Don't have an account? "}

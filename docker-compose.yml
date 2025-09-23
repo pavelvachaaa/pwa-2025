@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:17.4
+    container_name: postgres-db
+    restart: unless-stopped
+    env_file:
+        - "./backend/.env"
+    environment:
+      POSTGRES_USER: ${DB_USER:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-app}
+      POSTGRES_DB: ${DB_NAME:-appdb}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - pwa_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pwa_backend
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_PRETTY: ${LOG_PRETTY:-true}
+      PORT: ${PORT:-3333}
+
+      # Database
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-appdb}
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD:-app}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-supersecretkey-change-in-production}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
+      JWT_ALG: ${JWT_ALG:-HS256}
+
+      # Bcrypt
+      BCRYPT_COST: ${BCRYPT_COST:-12}
+
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3001/auth/google/callback}
+    ports:
+      - "${PORT:-3333}:${PORT:-3333}"
+    env_file:
+      - "./backend/.env"
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - pwa_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pwa_frontend
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
+    ports:
+      - "${PORT:-3001}:3001"
+    volumes:
+      - ./frontend:/usr/src/app
+      - /usr/src/app/node_modules
+      - /usr/src/app/.next
+    env_file:
+      - "./frontend/.env"
+    depends_on:
+      - backend
+    networks:
+      - pwa_network
+
+volumes:
+  pgdata:
+
+networks:
+  pwa_network:
+    driver: bridge
