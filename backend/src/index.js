@@ -25,7 +25,6 @@ app.use(express.json());
 // app.use(`${API_PREFIX}/auth`, authRoutes);
 // app.use(`${API_PREFIX}/users`, userRoutes);
 
-
 app.use((req, res, next) => {
   logger.debug({ method: req.method, url: req.url }, 'Incoming request');
   next();
