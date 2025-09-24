@@ -82,7 +82,7 @@ export function GoogleSignInButton({
           buttonRef.current.innerHTML = '';
 
           const buttonConfig: GoogleButtonConfig = {
-            theme: 'filled_black',
+            theme,
             size,
             text,
             shape,

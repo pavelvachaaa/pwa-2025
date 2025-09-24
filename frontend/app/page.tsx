@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from '@/hooks/use-auth'
+import { useAuth } from '@/lib/auth/context'
 import { UserProfile, UserProfileCard } from '@/components/auth/user-profile'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
