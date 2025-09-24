@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,7 +19,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const { signUp, isLoading } = useAuth()
+  const { register, loading } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,11 +31,11 @@ export default function RegisterPage() {
       return
     }
 
-    const result = await signUp({ displayName: name, email, password })
-    if (result.error) {
-      setError(result.error)
-    } else {
+    try {
+      await register({ displayName: name, email, password })
       router.push("/")
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Registration failed')
     }
   }
 
@@ -76,7 +76,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -89,7 +89,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -102,13 +102,13 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={loading}
                 minLength={6}
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Creating account..." : "Create account"}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating account..." : "Create account"}
             </Button>
           </form>
 
@@ -124,7 +124,7 @@ export default function RegisterPage() {
           <GoogleSignInButton
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
-            disabled={isLoading}
+            disabled={loading}
             text="signup_with"
             className="w-full"
           />
