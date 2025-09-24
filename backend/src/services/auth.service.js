@@ -208,7 +208,13 @@ class AuthService {
     }
   }
 
-  async refresh({ refreshToken }, context) {
+  async refresh(cookies, context) {
+    const refreshToken = cookies?.refreshToken;
+
+    if (!refreshToken) {
+      throw new Error('Invalid or expired refresh token');
+    }
+
     try {
       const refreshTokenHash = hashToken(refreshToken);
       const session = await sessionRepo.findValidByHash(refreshTokenHash);

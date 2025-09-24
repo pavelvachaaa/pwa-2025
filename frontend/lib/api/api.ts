@@ -27,47 +27,24 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('accessToken');
-  }
-
-  private getRefreshToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('refreshToken');
-  }
-
   private async refreshAccessToken(): Promise<boolean> {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return false;
-
     try {
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken })
+        credentials: 'include' // Include cookies
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success && data.data) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('accessToken', data.data.accessToken);
-          localStorage.setItem('refreshToken', data.data.refreshToken);
-        }
-        return true;
+      // If no refresh token cookie exists, don't try to refresh
+      if (response.status === 401) {
+        return false;
       }
+
+      const data = await response.json();
+      return response.ok && data.success;
     } catch (error) {
       console.error('Token refresh failed:', error);
-    }
-
-    return false;
-  }
-
-  private clearTokens(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      return false;
     }
   }
 
@@ -99,14 +76,6 @@ class ApiClient {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
-
-    // Add auth header if required or if token exists
-    if (options.requiresAuth !== false) {
-      const token = this.getToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
 
     // Merge with custom headers
     if (options.headers) {
@@ -166,6 +135,7 @@ class ApiClient {
       const config: RequestInit = {
         ...fetchOptions,
         headers,
+        credentials: 'include', // Always include cookies
       };
 
       // Handle body serialization
@@ -198,7 +168,7 @@ class ApiClient {
               // Retry the original request with new token
               return this.request<T>(endpoint, { ...options, skipRetry: true });
             } else {
-              this.clearTokens();
+              // Refresh failed - trigger logout
               this.processQueue(new Error('Authentication expired'));
 
               if (typeof window !== 'undefined') {

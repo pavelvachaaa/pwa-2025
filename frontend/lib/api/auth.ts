@@ -65,6 +65,6 @@ export const authApi = {
   },
 
   async me(): Promise<ApiResponse<User>> {
-    return api.get<User>('/auth/me');
+    return api.get<User>('/auth/me', { skipRetry: true });
   }
 } as const;

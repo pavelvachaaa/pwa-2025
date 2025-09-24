@@ -4,13 +4,60 @@ const schemas = require('@/schemas/auth.schemas');
 const logger = require('@utils/logger').child({ module: 'authController' });
 
 class AuthController {
+  _setCookies(res, accessToken, refreshToken) {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction, // HTTPS only in production
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/', // Available on all paths
+      domain: isProduction ? undefined : undefined // Let browser decide in dev
+    };
+
+    logger.debug({
+      isProduction,
+      cookieOptions
+    }, 'Setting authentication cookies');
+
+    // Set access token cookie
+    res.cookie('accessToken', accessToken, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    // Set refresh token cookie
+    res.cookie('refreshToken', refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+  }
+
+  _clearCookies(res) {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/'
+    };
+
+    res.clearCookie('accessToken', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
+  }
   async register(req, res, next) {
     try {
       const result = await authService.register(req.body, req);
 
+      // Set HTTP-only cookies
+      this._setCookies(res, result.accessToken, result.refreshToken);
+
       res.status(201).json({
         success: true,
-        data: result
+        data: {
+          user: result.user
+        }
       });
     } catch (error) {
       logger.error({ err: error }, 'Registration failed');
@@ -30,9 +77,14 @@ class AuthController {
     try {
       const result = await authService.login(req.body, req);
 
+      // Set HTTP-only cookies
+      this._setCookies(res, result.accessToken, result.refreshToken);
+
       res.status(200).json({
         success: true,
-        data: result
+        data: {
+          user: result.user
+        }
       });
     } catch (error) {
       logger.error({ err: error }, 'Login failed');
@@ -74,9 +126,14 @@ class AuthController {
     try {
       const result = await authService.loginWithGoogle(req.body, req);
 
+      // Set HTTP-only cookies
+      this._setCookies(res, result.accessToken, result.refreshToken);
+
       res.status(200).json({
         success: true,
-        data: result
+        data: {
+          user: result.user
+        }
       });
     } catch (error) {
       logger.error({ err: error }, 'Google OAuth callback failed');
@@ -96,9 +153,14 @@ class AuthController {
     try {
       const result = await authService.loginWithGoogleIdToken(req.body, req);
 
+      // Set HTTP-only cookies
+      this._setCookies(res, result.accessToken, result.refreshToken);
+
       res.status(200).json({
         success: true,
-        data: result
+        data: {
+          user: result.user
+        }
       });
     } catch (error) {
       logger.error({ err: error }, 'Google ID token login failed');
@@ -116,11 +178,16 @@ class AuthController {
 
   async refresh(req, res, next) {
     try {
-      const result = await authService.refresh(req.body, req);
+      const result = await authService.refresh(req.cookies, req);
+
+      // Set new HTTP-only cookies
+      this._setCookies(res, result.accessToken, result.refreshToken);
 
       res.status(200).json({
         success: true,
-        data: result
+        data: {
+          user: result.user
+        }
       });
     } catch (error) {
       logger.error({ err: error }, 'Token refresh failed');
@@ -140,6 +207,9 @@ class AuthController {
     try {
       await authService.logout(req);
 
+      // Clear cookies
+      this._clearCookies(res);
+
       res.status(204).send();
     } catch (error) {
       logger.error({ err: error }, 'Logout failed');
@@ -158,6 +228,9 @@ class AuthController {
   async logoutAll(req, res, next) {
     try {
       await authService.logoutAll(req);
+
+      // Clear cookies
+      this._clearCookies(res);
 
       res.status(204).send();
     } catch (error) {

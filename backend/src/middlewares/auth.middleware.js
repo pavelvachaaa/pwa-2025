@@ -3,16 +3,19 @@ const { user: userRepo } = require('@repositories/auth.repository');
 const logger = require('@utils/logger').child({ module: 'authMiddleware' });
 
 function authMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization;
+  const token = req.cookies?.accessToken;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  logger.debug({
+    cookies: Object.keys(req.cookies || {}),
+    hasAccessToken: !!token
+  }, 'Auth middleware check');
+
+  if (!token) {
     return res.status(401).json({
       success: false,
       error: 'Access token required'
     });
   }
-
-  const token = authHeader.substring(7);
 
   try {
     const decoded = verifyToken(token);
@@ -96,14 +99,12 @@ async function requireActiveUser(req, res, next) {
 }
 
 function optionalAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
+  const token = req.cookies?.accessToken;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!token) {
     req.user = null;
     return next();
   }
-
-  const token = authHeader.substring(7);
 
   try {
     const decoded = verifyToken(token);

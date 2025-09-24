@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { authApi, type RegisterData, type LoginData, type GoogleIdTokenData, type User } from '../api/auth';
-import { tokenManager } from './tokens';
 
 
 interface AuthContextType {
@@ -30,33 +29,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const clearAuth = useCallback(() => {
     setUser(null);
-    tokenManager.clearTokens();
   }, []);
 
 
   const checkAuthStatus = useCallback(async () => {
-    const accessToken = tokenManager.getAccessToken();
-
-    if (!accessToken) {
-      setLoading(false);
-      return;
-    }
-
-    // Get current user info - interceptor handles token refresh
     try {
+      // Since cookies are HTTP-only, we can't check them with document.cookie
+      // Just try to get user info - if no cookies exist, it will fail gracefully
       const response = await authApi.me();
       if (response.success && response.data) {
         setUser(response.data);
       } else {
-        clearAuth();
+        // No valid session
+        setUser(null);
       }
     } catch (error) {
       console.error('Failed to get user info:', error);
-      clearAuth();
+      setUser(null);
     }
 
     setLoading(false);
-  }, [clearAuth]);
+  }, []);
 
   useEffect(() => {
     checkAuthStatus();
@@ -76,10 +69,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await authApi.login(data);
 
     if (response.success && response.data) {
-      tokenManager.storeTokens(
-        response.data.accessToken,
-        response.data.refreshToken
-      );
+      // Cookies are set by the server, just update user state
       setUser(response.data.user);
     } else {
       throw new Error(response.error || 'Login failed');
@@ -90,10 +80,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await authApi.register(data);
 
     if (response.success && response.data) {
-      tokenManager.storeTokens(
-        response.data.accessToken,
-        response.data.refreshToken
-      );
+      // Cookies are set by the server, just update user state
       setUser(response.data.user);
     } else {
       throw new Error(response.error || 'Registration failed');
@@ -132,10 +119,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await authApi.googleCallback({ code, redirectUri });
 
     if (response.success && response.data) {
-      tokenManager.storeTokens(
-        response.data.accessToken,
-        response.data.refreshToken
-      );
+      // Cookies are set by the server, just update user state
       setUser(response.data.user);
     } else {
       throw new Error(response.error || 'Google login failed');
@@ -146,10 +130,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await authApi.googleIdToken({ idToken });
 
     if (response.success && response.data) {
-      tokenManager.storeTokens(
-        response.data.accessToken,
-        response.data.refreshToken
-      );
+      // Cookies are set by the server, just update user state
       setUser(response.data.user);
     } else {
       throw new Error(response.error || 'Google login failed');
