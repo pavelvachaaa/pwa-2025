@@ -39,3 +39,29 @@ export interface AuthGuardProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
+
+export type WSMessageType = 
+  | "message:new" 
+  | "message:updated" 
+  | "message:read" 
+  | "typing" 
+  | "presence" 
+  | "conversation:updated";
+
+export interface WSMessage {
+  type: WSMessageType;
+  payload: any;
+  timestamp: Date;
+}
+
+export interface WSClientConfig {
+  url?: string;
+  token?: string;
+  reconnectInterval?: number;
+  maxReconnectAttempts?: number;
+}
+
+export type WSEventHandler = (data: any) => void;
+
+
+
