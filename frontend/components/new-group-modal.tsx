@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Search, X, Users, Camera } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, X, Users, Camera, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,8 +9,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { mockUsers } from "@/lib/mock-data"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
+import { chatApi } from "@/lib/api/chat"
+import type { User } from "@/types"
 
 interface NewGroupModalProps {
   open: boolean
@@ -24,14 +25,35 @@ export function NewGroupModal({ open, onOpenChange, onCreateGroup }: NewGroupMod
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [groupName, setGroupName] = useState("")
   const [groupAvatar, setGroupAvatar] = useState("")
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(false)
   const { user } = useAuth()
 
-  // Filter out current user and search by name or email
-  const filteredUsers = mockUsers.filter((u) => {
-    if (u.id === user?.id) return false
-    const query = searchQuery.toLowerCase()
-    return u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query)
-  })
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      searchUsers(searchQuery)
+    } else {
+      setUsers([])
+    }
+  }, [searchQuery])
+
+  const searchUsers = async (query: string) => {
+    setLoading(true)
+    try {
+      const response = await chatApi.searchUsers(query)
+      if (response.success && response.data) {
+        const filteredUsers = response.data.filter((u) => u.id !== user?.id)
+        setUsers(filteredUsers)
+      } else {
+        setUsers([])
+      }
+    } catch (error) {
+      console.error('Error searching users:', error)
+      setUsers([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleUserToggle = (userId: string) => {
     setSelectedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]))
@@ -62,7 +84,7 @@ export function NewGroupModal({ open, onOpenChange, onCreateGroup }: NewGroupMod
 
   const getSelectedUserNames = () => {
     return selectedUsers
-      .map((id) => mockUsers.find((u) => u.id === id)?.name)
+      .map((id) => users.find((u) => u.id === id)?.name || users.find((u) => u.id === id)?.email)
       .filter(Boolean)
       .join(", ")
   }
@@ -100,30 +122,32 @@ export function NewGroupModal({ open, onOpenChange, onCreateGroup }: NewGroupMod
 
             {/* Users List */}
             <div className="max-h-60 overflow-y-auto space-y-2">
-              {filteredUsers.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="ml-2 text-muted-foreground">Searching...</span>
+                </div>
+              ) : users.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {searchQuery ? "No users found" : "No users available"}
+                  {searchQuery ? "No users found" : "Start typing to search for users..."}
                 </div>
               ) : (
-                filteredUsers.map((user) => (
-                  <div key={user.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-accent">
+                users.map((foundUser) => (
+                  <div key={foundUser.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-accent">
                     <Checkbox
-                      id={user.id}
-                      checked={selectedUsers.includes(user.id)}
-                      onCheckedChange={() => handleUserToggle(user.id)}
+                      id={foundUser.id}
+                      checked={selectedUsers.includes(foundUser.id)}
+                      onCheckedChange={() => handleUserToggle(foundUser.id)}
                     />
-                    <Label htmlFor={user.id} className="flex items-center gap-3 flex-1 cursor-pointer">
+                    <Label htmlFor={foundUser.id} className="flex items-center gap-3 flex-1 cursor-pointer">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={foundUser.avatar || "/placeholder.svg"} />
+                        <AvatarFallback>{foundUser.name?.charAt(0) || foundUser.email?.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{user.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                        <p className="font-medium truncate">{foundUser.name || foundUser.email}</p>
+                        <p className="text-sm text-muted-foreground truncate">{foundUser.email}</p>
                       </div>
-                      <Badge variant={user.status === "online" ? "default" : "secondary"} className="text-xs">
-                        {user.status}
-                      </Badge>
                     </Label>
                   </div>
                 ))
@@ -176,16 +200,16 @@ export function NewGroupModal({ open, onOpenChange, onCreateGroup }: NewGroupMod
               <Label>Participants ({selectedUsers.length})</Label>
               <div className="max-h-32 overflow-y-auto space-y-2">
                 {selectedUsers.map((userId) => {
-                  const user = mockUsers.find((u) => u.id === userId)
-                  if (!user) return null
+                  const selectedUser = users.find((u) => u.id === userId)
+                  if (!selectedUser) return null
 
                   return (
                     <div key={userId} className="flex items-center gap-3 p-2 bg-accent rounded-lg">
                       <Avatar className="h-6 w-6">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={selectedUser.avatar || "/placeholder.svg"} />
+                        <AvatarFallback>{selectedUser.name?.charAt(0) || selectedUser.email?.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <span className="text-sm font-medium">{user.name}</span>
+                      <span className="text-sm font-medium">{selectedUser.name || selectedUser.email}</span>
                       <Button
                         size="sm"
                         variant="ghost"

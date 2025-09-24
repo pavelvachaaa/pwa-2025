@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Suspense } from "react"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth/context"
+import { ChatProvider } from "@/hooks/use-chat"
 
 export const metadata: Metadata = {
     title: "PainChat",
@@ -21,7 +22,9 @@ export default function RootLayout({
             <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
                 <Suspense fallback={null}>
                     <AuthProvider>
-                        {children}
+                        <ChatProvider>
+                            {children}
+                        </ChatProvider>
                     </AuthProvider>
                 </Suspense >
             </body>

@@ -1,26 +1,26 @@
-import type { WSMessage, WSClientConfig, WSEventHandler } from '@/types';
+import type { WSClientConfig, WSEventHandler } from '@/types';
+import { io, Socket } from 'socket.io-client';
 
 class WSClient {
-  private ws: WebSocket | null = null
+  private socket: Socket | null = null
   private config: WSClientConfig
   private eventHandlers: Map<string, Set<WSEventHandler>> = new Map()
   private reconnectAttempts = 0
-  private reconnectTimer: NodeJS.Timeout | null = null
   private isConnecting = false
-  private subscriptions: Set<string> = new Set()
+  private token: string | null = null
 
   constructor(config: WSClientConfig = {}) {
     this.config = {
-      url: config.url || "ws://localhost:3001",
+      url: config.url || "http://localhost:3000",
       reconnectInterval: config.reconnectInterval || 3000,
       maxReconnectAttempts: config.maxReconnectAttempts || 5,
       ...config,
     }
   }
 
-  connect(token?: string): Promise<void> {
+  async connect(userId: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
+      if (this.socket?.connected) {
         resolve()
         return
       }
@@ -33,10 +33,47 @@ class WSClient {
       this.isConnecting = true
 
       try {
-        // In a real implementation, this would connect to an actual WebSocket server
-        // For demo purposes, we'll simulate the connection
-        this.simulateConnection(token)
-        resolve()
+        // Get auth token from localStorage or make API call to get it
+        const token = this.getAuthToken()
+        if (!token) {
+          throw new Error('Authentication token not found')
+        }
+
+        this.token = token
+
+        this.socket = io(this.config.url!, {
+          auth: {
+            token: token
+          },
+          autoConnect: true,
+          reconnection: true,
+          reconnectionAttempts: this.config.maxReconnectAttempts,
+          reconnectionDelay: this.config.reconnectInterval
+        })
+
+        this.setupEventHandlers()
+
+        this.socket.on('connect', () => {
+          this.isConnecting = false
+          this.reconnectAttempts = 0
+          console.log('[WS] Connected to server')
+          this.emit('connected', { userId })
+          resolve()
+        })
+
+        this.socket.on('connect_error', (error) => {
+          this.isConnecting = false
+          console.error('[WS] Connection error:', error)
+          this.emit('disconnected', {})
+          reject(new Error(`Connection failed: ${error.message}`))
+        })
+
+        this.socket.on('disconnect', (reason) => {
+          this.isConnecting = false
+          console.log('[WS] Disconnected:', reason)
+          this.emit('disconnected', { reason })
+        })
+
       } catch (error) {
         this.isConnecting = false
         reject(error)
@@ -44,192 +81,117 @@ class WSClient {
     })
   }
 
-  private simulateConnection(token?: string) {
-    // Simulate WebSocket connection for demo
-    console.log("[WS] Simulating WebSocket connection...")
-
-    // Create a mock WebSocket-like object
-    const mockWS = {
-      readyState: 1, // OPEN
-      send: (data: string) => {
-        console.log("[WS] Mock send:", data)
-        // Simulate server responses
-        this.simulateServerResponse(JSON.parse(data))
-      },
-      close: () => {
-        console.log("[WS] Mock connection closed")
-        this.handleDisconnect()
-      },
-    }
-
-    this.ws = mockWS as any
-    this.isConnecting = false
-    this.reconnectAttempts = 0
-
-    // Simulate connection success
-    setTimeout(() => {
-      this.emit("connected", { token })
-      console.log("[WS] Mock connection established")
-
-      // Start simulating real-time events
-      this.startMockEvents()
-    }, 500)
-  }
-
-  private simulateServerResponse(message: any) {
-    // Simulate server processing and responses
-    switch (message.type) {
-      case "subscribe":
-        console.log(`[WS] Subscribed to conversation: ${message.conversationId}`)
-        this.emit("subscribed", { conversationId: message.conversationId })
-        break
-
-      case "message:send":
-        // Simulate message being sent and broadcast
-        const newMessage = {
-          id: `msg_${Date.now()}`,
-          conversationId: message.conversationId,
-          senderId: message.senderId,
-          content: message.content,
-          timestamp: new Date(),
-          type: "text",
-        }
-
-        // Simulate slight delay
-        setTimeout(() => {
-          this.emit("message:new", newMessage)
-        }, 100)
-        break
-
-      case "typing:start":
-        this.emit("typing", {
-          conversationId: message.conversationId,
-          userId: message.userId,
-          isTyping: true,
-        })
-        break
-
-      case "typing:stop":
-        this.emit("typing", {
-          conversationId: message.conversationId,
-          userId: message.userId,
-          isTyping: false,
-        })
-        break
+  private getAuthToken(): string | null {
+    try {
+      // In a real implementation, this would get the JWT token from the auth context
+      // Since we're using httpOnly cookies, we can't access the token directly
+      // The WebSocket authentication will be handled by the server middleware
+      // For now, we'll send a placeholder that the server can validate against the session
+      return 'authenticated-user'
+    } catch (error) {
+      console.error('[WS] Failed to get auth token:', error)
+      return null
     }
   }
 
-  private startMockEvents() {
-    // Simulate random real-time events for demo
-    const events = [() => this.simulateTyping(), () => this.simulatePresenceUpdate(), () => this.simulateMessageRead()]
+  private setupEventHandlers() {
+    if (!this.socket) return
 
-    const runRandomEvent = () => {
-      if (this.ws?.readyState === 1) {
-        const randomEvent = events[Math.floor(Math.random() * events.length)]
-        randomEvent()
-      }
-
-      // Schedule next random event
-      setTimeout(runRandomEvent, Math.random() * 10000 + 5000) // 5-15 seconds
-    }
-
-    // Start the random events
-    setTimeout(runRandomEvent, 3000)
-  }
-
-  private simulateTyping() {
-    const conversationIds = ["conv_1", "conv_2", "conv_3"]
-    const userIds = ["2", "3", "4", "5"]
-
-    const conversationId = conversationIds[Math.floor(Math.random() * conversationIds.length)]
-    const userId = userIds[Math.floor(Math.random() * userIds.length)]
-
-    // Start typing
-    this.emit("typing", {
-      conversationId,
-      userId,
-      isTyping: true,
+    // Handle incoming messages
+    this.socket.on('message:new', (data) => {
+      console.log('[WS] New message received:', data)
+      this.emit('message:new', data.message)
     })
 
-    // Stop typing after 2-5 seconds
-    setTimeout(
-      () => {
-        this.emit("typing", {
-          conversationId,
-          userId,
-          isTyping: false,
-        })
-      },
-      Math.random() * 3000 + 2000,
-    )
-  }
-
-  private simulatePresenceUpdate() {
-    const userIds = ["2", "3", "4", "5"]
-    const statuses = ["online", "away", "offline"]
-
-    const userId = userIds[Math.floor(Math.random() * userIds.length)]
-    const status = statuses[Math.floor(Math.random() * statuses.length)]
-
-    this.emit("presence", {
-      userId,
-      status,
-      lastSeen: status === "offline" ? new Date() : undefined,
+    this.socket.on('message:edited', (data) => {
+      console.log('[WS] Message edited:', data)
+      this.emit('message:updated', data.message)
     })
-  }
 
-  private simulateMessageRead() {
-    const conversationIds = ["conv_1", "conv_2", "conv_3"]
-    const userIds = ["2", "3", "4", "5"]
+    this.socket.on('message:deleted', (data) => {
+      console.log('[WS] Message deleted:', data)
+      this.emit('message:deleted', data)
+    })
 
-    const conversationId = conversationIds[Math.floor(Math.random() * conversationIds.length)]
-    const userId = userIds[Math.floor(Math.random() * userIds.length)]
+    this.socket.on('message:reaction_added', (data) => {
+      console.log('[WS] Reaction added:', data)
+      this.emit('message:reaction', data)
+    })
 
-    this.emit("message:read", {
-      conversationId,
-      userId,
-      readAt: new Date(),
+    this.socket.on('message:reaction_removed', (data) => {
+      console.log('[WS] Reaction removed:', data)
+      this.emit('message:reaction', data)
+    })
+
+    // Handle typing indicators
+    this.socket.on('typing:user_started', (data) => {
+      console.log('[WS] User started typing:', data)
+      this.emit('typing', {
+        conversationId: data.conversationId,
+        userId: data.userId,
+        isTyping: true
+      })
+    })
+
+    this.socket.on('typing:user_stopped', (data) => {
+      console.log('[WS] User stopped typing:', data)
+      this.emit('typing', {
+        conversationId: data.conversationId,
+        userId: data.userId,
+        isTyping: false
+      })
+    })
+
+    // Handle presence updates
+    this.socket.on('presence:user_updated', (data) => {
+      console.log('[WS] User presence updated:', data)
+      this.emit('presence', data)
+    })
+
+    // Handle read status
+    this.socket.on('conversation:read_by_user', (data) => {
+      console.log('[WS] Message read by user:', data)
+      this.emit('message:read', data)
+    })
+
+    // Handle errors
+    this.socket.on('error', (data) => {
+      console.error('[WS] Server error:', data)
+      this.emit('error', data)
+    })
+
+    // Handle conversation events
+    this.socket.on('conversation:joined', (data) => {
+      console.log('[WS] Joined conversation:', data)
+      this.emit('conversation:joined', data)
     })
   }
 
   disconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
+    if (this.socket) {
+      this.socket.disconnect()
+      this.socket = null
     }
-
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-
-    this.subscriptions.clear()
-    console.log("[WS] Disconnected")
+    console.log('[WS] Disconnected')
   }
 
   subscribe(conversationId: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("[WS] Cannot subscribe: not connected")
+    if (!this.socket?.connected) {
+      console.warn('[WS] Cannot subscribe: not connected')
       return
     }
 
-    this.subscriptions.add(conversationId)
-    this.send({
-      type: "subscribe",
-      conversationId,
-    })
+    this.socket.emit('conversation:join', { conversationId })
+    console.log(`[WS] Subscribing to conversation: ${conversationId}`)
   }
 
   unsubscribe(conversationId: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.socket?.connected) {
       return
     }
 
-    this.subscriptions.delete(conversationId)
-    this.send({
-      type: "unsubscribe",
-      conversationId,
-    })
+    this.socket.emit('conversation:leave', { conversationId })
+    console.log(`[WS] Unsubscribing from conversation: ${conversationId}`)
   }
 
   sendMessage(payload: {
@@ -238,60 +200,51 @@ class WSClient {
     type?: string
     replyTo?: string
   }): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("[WS] Cannot send message: not connected")
+    if (!this.socket?.connected) {
+      console.warn('[WS] Cannot send message: not connected')
       return
     }
 
-    const currentUserId = this.getCurrentUserId()
-
-    this.send({
-      type: "message:send",
-      ...payload,
-      senderId: currentUserId,
-      timestamp: new Date(),
+    this.socket.emit('message:send', {
+      conversationId: payload.conversationId,
+      content: payload.content,
+      messageType: payload.type || 'text',
+      replyTo: payload.replyTo
     })
+
+    console.log('[WS] Message sent:', payload)
   }
 
   startTyping(conversationId: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.socket?.connected) {
       return
     }
 
-    const currentUserId = this.getCurrentUserId()
-
-    this.send({
-      type: "typing:start",
-      conversationId,
-      userId: currentUserId,
-    })
+    this.socket.emit('typing:start', { conversationId })
   }
 
   stopTyping(conversationId: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.socket?.connected) {
       return
     }
 
-    const currentUserId = this.getCurrentUserId()
-
-    this.send({
-      type: "typing:stop",
-      conversationId,
-      userId: currentUserId,
-    })
+    this.socket.emit('typing:stop', { conversationId })
   }
 
-  private getCurrentUserId(): string {
-    try {
-      const authData = localStorage.getItem("auth")
-      if (authData) {
-        const { user } = JSON.parse(authData)
-        return user?.id || "1"
-      }
-    } catch (error) {
-      console.warn("[WS] Could not get user ID from auth:", error)
+  markAsRead(conversationId: string): void {
+    if (!this.socket?.connected) {
+      return
     }
-    return "1" // fallback
+
+    this.socket.emit('conversation:mark_read', { conversationId })
+  }
+
+  updatePresence(status: 'online' | 'away' | 'offline'): void {
+    if (!this.socket?.connected) {
+      return
+    }
+
+    this.socket.emit('presence:update', { status })
   }
 
   on(event: string, handler: WSEventHandler): void {
@@ -324,60 +277,23 @@ class WSClient {
     }
   }
 
-  private send(data: any): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data))
-    }
-  }
-
-  private handleDisconnect(): void {
-    this.ws = null
-    this.isConnecting = false
-
-    this.emit("disconnected", {})
-
-    // Attempt to reconnect
-    if (this.reconnectAttempts < this.config.maxReconnectAttempts!) {
-      this.reconnectAttempts++
-      console.log(`[WS] Attempting to reconnect (${this.reconnectAttempts}/${this.config.maxReconnectAttempts})`)
-
-      this.reconnectTimer = setTimeout(() => {
-        this.connect(this.config.token).catch((error) => {
-          console.error("[WS] Reconnection failed:", error)
-        })
-      }, this.config.reconnectInterval)
-    } else {
-      console.error("[WS] Max reconnection attempts reached")
-      this.emit("reconnect_failed", {})
-    }
-  }
-
   get isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+    return this.socket?.connected ?? false
   }
 
   get connectionState(): string {
-    if (!this.ws) return "disconnected"
+    if (!this.socket) return 'disconnected'
 
-    switch (this.ws.readyState) {
-      case WebSocket.CONNECTING:
-        return "connecting"
-      case WebSocket.OPEN:
-        return "connected"
-      case WebSocket.CLOSING:
-        return "closing"
-      case WebSocket.CLOSED:
-        return "disconnected"
-      default:
-        return "unknown"
-    }
+    if (this.socket.connected) return 'connected'
+    if (this.isConnecting) return 'connecting'
+    if (this.socket.disconnected) return 'disconnected'
+
+    return 'unknown'
   }
 }
 
-// Singleton instance
 export const wsClient = new WSClient()
 
-// Hook for using WebSocket in React components
 export function useWebSocket() {
   return wsClient
 }

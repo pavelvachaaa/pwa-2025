@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { MessageCircle } from 'lucide-react'
+import { ChatLayout } from '@/components/chat-layout'
 
 export default function HomePage() {
     const { user, isAuthenticated, loading } = useAuth()
@@ -19,41 +20,42 @@ export default function HomePage() {
     }
 
     if (isAuthenticated && user) {
-        return (
-            <div className="min-h-[calc(100vh-3.5rem)] bg-background p-4">
-                <div className="max-w-4xl mx-auto">
-                    <div className="mb-8 text-center">
-                        <h1 className="text-3xl font-bold mb-2">Welcome back, {user.display_name}!</h1>
-                        <p className="text-muted-foreground">Your authentication system is working perfectly.</p>
-                    </div>
+        return <ChatLayout></ChatLayout>
+        // return (
+        //     <div className="min-h-[calc(100vh-3.5rem)] bg-background p-4">
+        //         <div className="max-w-4xl mx-auto">
+        //             <div className="mb-8 text-center">
+        //                 <h1 className="text-3xl font-bold mb-2">Welcome back, {user.display_name}!</h1>
+        //                 <p className="text-muted-foreground">Your authentication system is working perfectly.</p>
+        //             </div>
 
-                    <div className="grid gap-6 md:grid-cols-2">
-                        <UserProfileCard />
+        //             <div className="grid gap-6 md:grid-cols-2">
+        //                 <UserProfileCard />
 
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Quick Actions</CardTitle>
-                                <CardDescription>What would you like to do today?</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <Button className="w-full" asChild>
-                                    <Link href="/chat">
-                                        <MessageCircle className="mr-2 h-4 w-4" />
-                                        Start Chatting
-                                    </Link>
-                                </Button>
+        //                 <Card>
+        //                     <CardHeader>
+        //                         <CardTitle>Quick Actions</CardTitle>
+        //                         <CardDescription>What would you like to do today?</CardDescription>
+        //                     </CardHeader>
+        //                     <CardContent className="space-y-4">
+        //                         <Button className="w-full" asChild>
+        //                             <Link href="/chat">
+        //                                 <MessageCircle className="mr-2 h-4 w-4" />
+        //                                 Start Chatting
+        //                             </Link>
+        //                         </Button>
 
-                                <Button variant="outline" className="w-full" asChild>
-                                    <Link href="/profile">
-                                        View Profile Settings
-                                    </Link>
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-            </div>
-        )
+        //                         <Button variant="outline" className="w-full" asChild>
+        //                             <Link href="/profile">
+        //                                 View Profile Settings
+        //                             </Link>
+        //                         </Button>
+        //                     </CardContent>
+        //                 </Card>
+        //             </div>
+        //         </div>
+        //     </div>
+        // )
     }
 
     return (

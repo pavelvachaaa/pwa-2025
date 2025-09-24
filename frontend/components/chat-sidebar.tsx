@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
 import { useRouter } from "next/navigation"
 import { getConversationName, getConversationAvatar, type Conversation } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
@@ -63,15 +63,15 @@ export function ChatSidebar({
     router.push("/settings")
   }
 
-  const handleStartChat = (userId: string) => {
-    const conversationId = createDirectMessage(userId)
+  const handleStartChat = async (userId: string) => {
+    const conversationId = await createDirectMessage(userId)
     if (conversationId) {
       onSelectConversation(conversationId)
     }
   }
 
-  const handleCreateGroup = (name: string, participants: string[], avatar?: string) => {
-    const conversationId = createGroupChat(name, participants, avatar)
+  const handleCreateGroup = async (name: string, participants: string[], avatar?: string) => {
+    const conversationId = await createGroupChat(name, participants, avatar)
     if (conversationId) {
       onSelectConversation(conversationId)
     }

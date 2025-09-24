@@ -1,15 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Search, UserPlus, Mail, Users } from "lucide-react"
+import { Search, UserPlus, Mail, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { mockUsers, type MockUser } from "@/lib/mock-data"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
+import { chatApi } from "@/lib/api/chat"
+import type { User } from "@/types"
 
 interface FindFriendsModalProps {
   open: boolean
@@ -19,26 +18,28 @@ interface FindFriendsModalProps {
 
 export function FindFriendsModal({ open, onOpenChange, onStartChat }: FindFriendsModalProps) {
   const [emailSearch, setEmailSearch] = useState("")
-  const [searchResults, setSearchResults] = useState<MockUser[]>([])
+  const [searchResults, setSearchResults] = useState<User[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const { user } = useAuth()
-
-  // Get suggested friends (users not currently chatting with)
-  const suggestedFriends = mockUsers.filter((u) => u.id !== user?.id).slice(0, 4)
 
   const handleEmailSearch = async () => {
     if (!emailSearch.trim()) return
 
     setIsSearching(true)
-
-    // Simulate API search delay
-    setTimeout(() => {
-      const results = mockUsers.filter(
-        (u) => u.id !== user?.id && u.email.toLowerCase().includes(emailSearch.toLowerCase()),
-      )
-      setSearchResults(results)
+    try {
+      const response = await chatApi.searchUsers(emailSearch)
+      if (response.success && response.data) {
+        const results = response.data.filter((u) => u.id !== user?.id)
+        setSearchResults(results)
+      } else {
+        setSearchResults([])
+      }
+    } catch (error) {
+      console.error('Error searching users:', error)
+      setSearchResults([])
+    } finally {
       setIsSearching(false)
-    }, 500)
+    }
   }
 
   const handleStartChat = (userId: string) => {
@@ -54,26 +55,16 @@ export function FindFriendsModal({ open, onOpenChange, onStartChat }: FindFriend
     setSearchResults([])
   }
 
-  const UserCard = ({ user, showAddButton = true }: { user: MockUser; showAddButton?: boolean }) => (
+  const UserCard = ({ user, showAddButton = true }: { user: User; showAddButton?: boolean }) => (
     <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors">
-      <div className="relative">
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={user.avatar || "/placeholder.svg"} />
-          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-        </Avatar>
-        <div
-          className={`absolute -bottom-1 -right-1 w-3 h-3 ${
-            user.status === "online" ? "bg-green-500" : user.status === "away" ? "bg-yellow-500" : "bg-gray-500"
-          } rounded-full border-2 border-background`}
-        ></div>
-      </div>
+      <Avatar className="h-10 w-10">
+        <AvatarImage src={user.avatar || "/placeholder.svg"} />
+        <AvatarFallback>{user.name?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+      </Avatar>
 
       <div className="flex-1 min-w-0">
-        <h3 className="font-medium truncate">{user.name}</h3>
+        <h3 className="font-medium truncate">{user.name || user.email}</h3>
         <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-        <Badge variant="secondary" className="text-xs mt-1">
-          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-        </Badge>
       </div>
 
       {showAddButton && (
@@ -115,7 +106,14 @@ export function FindFriendsModal({ open, onOpenChange, onStartChat }: FindFriend
                 />
               </div>
               <Button onClick={handleEmailSearch} disabled={!emailSearch.trim() || isSearching}>
-                {isSearching ? "Searching..." : "Search"}
+                {isSearching ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Searching...
+                  </>
+                ) : (
+                  "Search"
+                )}
               </Button>
             </div>
 
@@ -137,27 +135,6 @@ export function FindFriendsModal({ open, onOpenChange, onStartChat }: FindFriend
             )}
           </div>
 
-          <Separator />
-
-          {/* Suggested Friends */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-medium">Suggested Friends</h3>
-            </div>
-
-            <div className="space-y-2">
-              {suggestedFriends.map((user) => (
-                <UserCard key={user.id} user={user} />
-              ))}
-            </div>
-
-            {suggestedFriends.length === 0 && (
-              <div className="text-center py-4 text-muted-foreground">
-                <p>No suggestions available</p>
-              </div>
-            )}
-          </div>
         </div>
       </DialogContent>
     </Dialog>

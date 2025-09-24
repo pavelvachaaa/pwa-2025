@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { FileUploadZone } from "./file-upload-zone"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
 import { useToast } from "@/hooks/use-toast"
 import type { UploadedFile } from "@/lib/upload-utils"
 

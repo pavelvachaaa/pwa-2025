@@ -44,8 +44,11 @@ export function MessageComposer({
   const draftTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    const draft = getDraft(conversationId)
-    setMessage(draft)
+    const loadDraft = async () => {
+      const draft = await getDraft(conversationId)
+      setMessage(draft)
+    }
+    loadDraft()
   }, [conversationId, getDraft])
 
   useEffect(() => {
@@ -208,7 +211,7 @@ export function MessageComposer({
               ref={inputRef}
               value={message}
               onChange={handleInputChange}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               placeholder={
                 replyingTo ? `Reply to ${replyToSender?.name}...` : isConnected ? "Type a message..." : "Connecting..."
               }

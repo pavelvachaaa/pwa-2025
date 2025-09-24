@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { Search } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { mockUsers, type MockUser } from "@/lib/mock-data"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
+import { chatApi } from "@/lib/api/chat"
+import type { User } from "@/types"
 
 interface NewChatModalProps {
   open: boolean
@@ -17,14 +18,36 @@ interface NewChatModalProps {
 
 export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(false)
   const { user } = useAuth()
 
-  // Filter out current user and search by name or email
-  const filteredUsers = mockUsers.filter((u) => {
-    if (u.id === user?.id) return false
-    const query = searchQuery.toLowerCase()
-    return u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query)
-  })
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      searchUsers(searchQuery)
+    } else {
+      setUsers([])
+    }
+  }, [searchQuery])
+
+  const searchUsers = async (query: string) => {
+    setLoading(true)
+    try {
+      const response = await chatApi.searchUsers(query)
+      if (response.success && response.data) {
+        // Filter out current user
+        const filteredUsers = response.data.filter((u) => u.id !== user?.id)
+        setUsers(filteredUsers)
+      } else {
+        setUsers([])
+      }
+    } catch (error) {
+      console.error('Error searching users:', error)
+      setUsers([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleStartChat = (userId: string) => {
     onStartChat(userId)
@@ -32,32 +55,6 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
     setSearchQuery("")
   }
 
-  const getStatusColor = (status: MockUser["status"]) => {
-    switch (status) {
-      case "online":
-        return "bg-green-500"
-      case "away":
-        return "bg-yellow-500"
-      case "offline":
-        return "bg-gray-500"
-      default:
-        return "bg-gray-500"
-    }
-  }
-
-  const getStatusText = (user: MockUser) => {
-    if (user.status === "offline" && user.lastSeen) {
-      const now = new Date()
-      const diff = now.getTime() - user.lastSeen.getTime()
-      const hours = Math.floor(diff / (1000 * 60 * 60))
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-      if (hours < 1) return "Last seen recently"
-      if (hours < 24) return `Last seen ${hours}h ago`
-      return `Last seen ${days}d ago`
-    }
-    return user.status.charAt(0).toUpperCase() + user.status.slice(1)
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,36 +77,31 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
 
           {/* Users List */}
           <div className="max-h-80 overflow-y-auto space-y-2">
-            {filteredUsers.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2 text-muted-foreground">Searching...</span>
+              </div>
+            ) : users.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {searchQuery ? "No users found" : "No users available"}
+                {searchQuery ? "No users found" : "Start typing to search for users..."}
               </div>
             ) : (
-              filteredUsers.map((user) => (
+              users.map((foundUser) => (
                 <button
-                  key={user.id}
-                  onClick={() => handleStartChat(user.id)}
+                  key={foundUser.id}
+                  onClick={() => handleStartChat(foundUser.id)}
                   className="w-full p-3 rounded-lg hover:bg-accent transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div
-                        className={`absolute -bottom-1 -right-1 w-3 h-3 ${getStatusColor(user.status)} rounded-full border-2 border-background`}
-                      ></div>
-                    </div>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={foundUser.avatar || "/placeholder.svg"} />
+                      <AvatarFallback>{foundUser.name?.charAt(0) || foundUser.email?.charAt(0)}</AvatarFallback>
+                    </Avatar>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium truncate">{user.name}</h3>
-                        <Badge variant="secondary" className="text-xs">
-                          {getStatusText(user)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                      <h3 className="font-medium truncate">{foundUser.name || foundUser.email}</h3>
+                      <p className="text-sm text-muted-foreground truncate">{foundUser.email}</p>
                     </div>
                   </div>
                 </button>

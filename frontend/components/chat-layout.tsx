@@ -5,8 +5,8 @@ import { ChatSidebar } from "./chat-sidebar"
 import { ConversationView } from "./conversation-view"
 import { ConversationDetails } from "./conversation-details"
 import { useChat } from "@/hooks/use-chat"
-import { useAuth } from "@/hooks/use-auth"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/lib/auth/context"
+import { useIsMobile } from "@/components/ui/use-mobile"
 
 export function ChatLayout() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
@@ -45,8 +45,8 @@ export function ChatLayout() {
         }
     }
 
-    const handleStartChat = (userId: string) => {
-        const conversationId = createDirectMessage(userId)
+    const handleStartChat = async (userId: string) => {
+        const conversationId = await createDirectMessage(userId)
         if (conversationId) {
             handleSelectConversation(conversationId)
         }

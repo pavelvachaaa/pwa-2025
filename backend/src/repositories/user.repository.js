@@ -117,6 +117,31 @@ class UserRepository {
       throw error;
     }
   }
+
+  async searchUsers(query, currentUserId, limit = 20) {
+    try {
+      const searchQuery = `
+        SELECT id, email, display_name, avatar_url
+        FROM users
+        WHERE is_active = true
+        AND id != $2
+        AND (
+          display_name ILIKE $1
+          OR email ILIKE $1
+        )
+        ORDER BY display_name
+        LIMIT $3
+      `;
+      const searchTerm = `%${query}%`;
+      const result = await pool.query(searchQuery, [searchTerm, currentUserId, limit]);
+
+      logger.debug({ query, currentUserId, resultCount: result.rows.length }, 'User search completed');
+      return result.rows;
+    } catch (error) {
+      logger.error({ err: error, query, currentUserId }, 'Failed to search users');
+      throw error;
+    }
+  }
 }
 
 module.exports = new UserRepository();

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { getUserById, type Message } from "@/lib/mock-data"
 import { MediaMessage } from "./media-message"
 import { useChat } from "@/hooks/use-chat"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/lib/auth/context"
 import { cn } from "@/lib/utils"
 import { MoreHorizontal, Reply, Edit, Trash2, Pin, PinOff, Smile } from "lucide-react"
 
