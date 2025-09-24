@@ -1,17 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { authApi, type AuthResponse, type RegisterData, type LoginData, type GoogleIdTokenData } from '../api/auth';
+import { authApi, type RegisterData, type LoginData, type GoogleIdTokenData, type User } from '../api/auth';
 import { tokenManager } from './tokens';
 
-interface User {
-  id: string;
-  email: string;
-  display_name: string;
-  avatar_url?: string;
-  created_at: string;
-  updated_at: string;
-}
 
 interface AuthContextType {
   user: User | null;
@@ -23,7 +15,6 @@ interface AuthContextType {
   loginWithGoogle: (code: string, redirectUri?: string) => Promise<void>;
   loginWithGoogleIdToken: (idToken: string) => Promise<void>;
   startGoogleLogin: () => Promise<string>;
-  refreshTokens: () => Promise<boolean>;
   isAuthenticated: boolean;
 }
 
@@ -36,43 +27,12 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const clearAuth = useCallback(() => {
     setUser(null);
     tokenManager.clearTokens();
   }, []);
 
-  const refreshTokens = useCallback(async (): Promise<boolean> => {
-    if (isRefreshing) return false;
-
-    const refreshToken = tokenManager.getRefreshToken();
-    if (!refreshToken) {
-      clearAuth();
-      return false;
-    }
-
-    try {
-      setIsRefreshing(true);
-      const response = await authApi.refresh({ refreshToken });
-
-      if (response.success && response.data) {
-        tokenManager.storeTokens(
-          response.data.accessToken,
-          response.data.refreshToken
-        );
-        setUser(response.data.user);
-        return true;
-      }
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      clearAuth();
-    } finally {
-      setIsRefreshing(false);
-    }
-
-    return false;
-  }, [isRefreshing, clearAuth]);
 
   const checkAuthStatus = useCallback(async () => {
     const accessToken = tokenManager.getAccessToken();
@@ -82,16 +42,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Check if token needs refresh
-    if (tokenManager.shouldRefreshToken(accessToken)) {
-      const refreshed = await refreshTokens();
-      if (!refreshed) {
-        setLoading(false);
-        return;
-      }
-    }
-
-    // Get current user info
+    // Get current user info - interceptor handles token refresh
     try {
       const response = await authApi.me();
       if (response.success && response.data) {
@@ -101,32 +52,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (error) {
       console.error('Failed to get user info:', error);
-
-      // Try to refresh tokens once more
-      const refreshed = await refreshTokens();
-      if (!refreshed) {
-        clearAuth();
-      }
+      clearAuth();
     }
 
     setLoading(false);
-  }, [refreshTokens, clearAuth]);
+  }, [clearAuth]);
 
   useEffect(() => {
     checkAuthStatus();
-  }, [checkAuthStatus]);
 
-  // Set up automatic token refresh
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const accessToken = tokenManager.getAccessToken();
-      if (accessToken && tokenManager.shouldRefreshToken(accessToken)) {
-        refreshTokens();
-      }
-    }, 60000); // Check every minute
+    // Listen for automatic logout from API interceptor
+    const handleLogout = () => {
+      clearAuth();
+      window.location.href = '/auth/login';
+    };
 
-    return () => clearInterval(interval);
-  }, [refreshTokens]);
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
+  }, [checkAuthStatus, clearAuth]);
+
 
   const login = async (data: LoginData): Promise<void> => {
     const response = await authApi.login(data);
@@ -222,7 +166,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     loginWithGoogle,
     loginWithGoogleIdToken,
     startGoogleLogin,
-    refreshTokens,
     isAuthenticated: !!user
   };
 
