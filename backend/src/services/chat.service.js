@@ -259,6 +259,16 @@ class ChatService {
     }
   }
 
+  async getAllUsers(currentUserId, limit = 20) {
+    try {
+      const users = await userRepository.getAllUsers(currentUserId, limit);
+      return { users };
+    } catch (error) {
+      logger.error({ error: error.message, currentUserId }, 'Error getting all users');
+      throw error;
+    }
+  }
+
   async searchUsers(query, currentUserId, limit = 20) {
     try {
       if (!query?.trim()) {

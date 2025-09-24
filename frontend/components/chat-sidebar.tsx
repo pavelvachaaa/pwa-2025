@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, Plus, Users, Settings, LogOut, Command } from "lucide-react"
+import { Search, Plus, Users, LogOut, Command } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,7 +13,6 @@ import { getConversationName, getConversationAvatar, type Conversation } from "@
 import { cn } from "@/lib/utils"
 import { NewChatModal } from "./new-chat-modal"
 import { NewGroupModal } from "./new-group-modal"
-import { FindFriendsModal } from "./find-friends-modal"
 import { useChat } from "@/hooks/use-chat"
 import { GlobalSearch } from "./global-search" // Import GlobalSearch component
 
@@ -36,7 +35,7 @@ export function ChatSidebar({
   const [showFindFriendsModal, setShowFindFriendsModal] = useState(false)
   const [showGlobalSearch, setShowGlobalSearch] = useState(false) // Added global search state
 
-  const { user, signOut } = useAuth()
+  const { user, logout } = useAuth()
   const router = useRouter()
   const { createDirectMessage, createGroupChat } = useChat()
 
@@ -57,10 +56,6 @@ export function ChatSidebar({
     if (hours < 24) return `${hours}h`
     if (days < 7) return `${days}d`
     return date.toLocaleDateString()
-  }
-
-  const handleSettingsClick = () => {
-    router.push("/settings")
   }
 
   const handleStartChat = async (userId: string) => {
@@ -84,11 +79,11 @@ export function ChatSidebar({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.avatar || "/placeholder.svg"} />
-              <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
+              <AvatarImage src={user?.avatar_url || "/placeholder.svg"} />
+              <AvatarFallback>{user?.display_name?.charAt(0)}</AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="font-semibold text-sidebar-foreground">{user?.name}</h2>
+              <h2 className="font-semibold text-sidebar-foreground">{user?.display_name}</h2>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-xs text-sidebar-foreground/70">Online</span>
@@ -96,10 +91,7 @@ export function ChatSidebar({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSettingsClick}>
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={signOut}>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
@@ -149,14 +141,7 @@ export function ChatSidebar({
           <Users className="h-4 w-4" />
           New Group
         </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2 bg-sidebar-accent border-sidebar-border"
-          onClick={() => setShowFindFriendsModal(true)}
-        >
-          <Search className="h-4 w-4" />
-          Find Friends
-        </Button>
+       
       </div>
 
       <Separator className="bg-sidebar-border" />
@@ -238,13 +223,6 @@ export function ChatSidebar({
       <NewChatModal open={showNewChatModal} onOpenChange={setShowNewChatModal} onStartChat={handleStartChat} />
 
       <NewGroupModal open={showNewGroupModal} onOpenChange={setShowNewGroupModal} onCreateGroup={handleCreateGroup} />
-
-      <FindFriendsModal
-        open={showFindFriendsModal}
-        onOpenChange={setShowFindFriendsModal}
-        onStartChat={handleStartChat}
-      />
-
       <GlobalSearch
         open={showGlobalSearch}
         onOpenChange={setShowGlobalSearch}

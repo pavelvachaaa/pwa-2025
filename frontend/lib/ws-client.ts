@@ -11,7 +11,7 @@ class WSClient {
 
   constructor(config: WSClientConfig = {}) {
     this.config = {
-      url: config.url || "http://localhost:3000",
+      url: config.url || "http://localhost:3333",
       reconnectInterval: config.reconnectInterval || 3000,
       maxReconnectAttempts: config.maxReconnectAttempts || 5,
       ...config,

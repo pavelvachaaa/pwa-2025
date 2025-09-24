@@ -5,7 +5,6 @@ import { Search, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth/context"
 import { chatApi } from "@/lib/api/chat"
 import type { User } from "@/types"
@@ -23,12 +22,31 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
   const { user } = useAuth()
 
   useEffect(() => {
-    if (searchQuery.trim()) {
-      searchUsers(searchQuery)
-    } else {
-      setUsers([])
+    if (open) {
+      if (searchQuery.trim()) {
+        searchUsers(searchQuery)
+      } else {
+        loadAllUsers()
+      }
     }
-  }, [searchQuery])
+  }, [open, searchQuery])
+
+  const loadAllUsers = async () => {
+    setLoading(true)
+    try {
+      const response = await chatApi.getAllUsers()
+      if (response.success && response.data) {
+        setUsers(response.data)
+      } else {
+        setUsers([])
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+      setUsers([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const searchUsers = async (query: string) => {
     setLoading(true)
@@ -53,6 +71,7 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
     onStartChat(userId)
     onOpenChange(false)
     setSearchQuery("")
+    setUsers([])
   }
 
 
@@ -84,7 +103,7 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
               </div>
             ) : users.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {searchQuery ? "No users found" : "Start typing to search for users..."}
+                {searchQuery ? "No users found" : "No other users available"}
               </div>
             ) : (
               users.map((foundUser) => (

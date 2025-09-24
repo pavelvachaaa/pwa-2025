@@ -269,6 +269,27 @@ class ChatController {
     }
   }
 
+  // Get all users
+  async getAllUsers(req, res) {
+    try {
+      const userId = req.user.userId;
+      const { limit = 20 } = req.query;
+
+      const result = await chatService.getAllUsers(userId, parseInt(limit));
+
+      res.json({
+        success: true,
+        data: result.users
+      });
+    } catch (error) {
+      logger.error({ error: error.message, userId: req.user?.userId }, 'Error getting all users');
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   // Search users
   async searchUsers(req, res) {
     try {

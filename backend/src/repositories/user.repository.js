@@ -118,6 +118,31 @@ class UserRepository {
     }
   }
 
+  async getAllUsers(currentUserId, limit = 20) {
+    try {
+      const query = `
+        SELECT id, email, display_name, avatar_url
+        FROM users
+        WHERE is_active = true
+        AND id != $1
+        ORDER BY display_name
+        LIMIT $2
+      `;
+
+      const result = await pool.query(query, [currentUserId, limit]);
+
+      return result.rows.map(row => ({
+        id: row.id,
+        email: row.email,
+        name: row.display_name,
+        avatar: row.avatar_url
+      }));
+    } catch (error) {
+      logger.error({ error: error.message, currentUserId }, 'Error getting all users');
+      throw error;
+    }
+  }
+
   async searchUsers(query, currentUserId, limit = 20) {
     try {
       const searchQuery = `

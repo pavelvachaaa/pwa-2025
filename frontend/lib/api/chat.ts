@@ -84,7 +84,7 @@ export const chatApi = {
   async getMessages(conversationId: string, limit = 50, offset = 0): Promise<ApiResponse<Message[]>> {
     try {
       const response = await api.get(`/chat/conversations/${conversationId}/messages`, {
-        params: { limit, offset }
+        params: { limit: limit.toString(), offset: offset.toString() }
       });
       return {
         success: true,
@@ -159,7 +159,10 @@ export const chatApi = {
 
   async removeReaction(messageId: string, emoji: string): Promise<ApiResponse<void>> {
     try {
-      await api.delete(`/chat/messages/${messageId}/reactions`, { data: { emoji } });
+      await api.delete(`/chat/messages/${messageId}/reactions`, {
+        data: JSON.stringify({ emoji }),
+        headers: { 'Content-Type': 'application/json' }
+      });
       return {
         success: true
       };
@@ -217,10 +220,27 @@ export const chatApi = {
   },
 
   // User search
+  async getAllUsers(limit = 20): Promise<ApiResponse<User[]>> {
+    try {
+      const response = await api.get('/chat/users', {
+        params: { limit: limit.toString() }
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message || 'Failed to get users'
+      };
+    }
+  },
+
   async searchUsers(query: string, limit = 20): Promise<ApiResponse<User[]>> {
     try {
       const response = await api.get('/chat/users/search', {
-        params: { q: query, limit }
+        params: { q: query, limit: limit.toString() }
       });
       return {
         success: true,

@@ -31,6 +31,7 @@ router.get('/conversations/:conversationId/draft', chatController.getDraft);
 router.post('/conversations/:conversationId/draft', chatController.saveDraft);
 
 // User search and presence
+router.get('/users', chatController.getAllUsers);
 router.get('/users/search', chatController.searchUsers);
 router.get('/users/presence', chatController.getUsersPresence);
 

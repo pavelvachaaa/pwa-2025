@@ -7,7 +7,6 @@ import { Smile, Paperclip, Send, X, Reply } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { FileUploadZone } from "./file-upload-zone"
 import { MediaMessage } from "./media-message"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getUserById, type Message } from "@/lib/mock-data"
@@ -201,7 +200,6 @@ export function MessageComposer({
               <DialogHeader>
                 <DialogTitle>Upload Files</DialogTitle>
               </DialogHeader>
-              <FileUploadZone onFileUploaded={handleFileUploaded} multiple={true} className="mt-4" />
             </DialogContent>
           </Dialog>
 
