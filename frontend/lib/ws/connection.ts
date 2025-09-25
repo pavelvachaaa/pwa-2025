@@ -125,6 +125,7 @@ export class WSConnection {
     return this.socket.connected ? 'connected' : 'disconnected'
   }
 
+  // We "fucked up" here cuz of the secure HTTP cookie 
   private async getAuthToken(): Promise<string | null> {
     try {
       const response = await api.get<{ token: string }>('/auth/getToken')

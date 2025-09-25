@@ -114,14 +114,6 @@ export default function LoginPage() {
               Sign up
             </Link>
           </div>
-
-          <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-            <strong>Demo credentials:</strong>
-            <br />
-            Email: demo@example.com
-            <br />
-            Password: password
-          </div>
         </CardContent>
       </Card>
     </div>

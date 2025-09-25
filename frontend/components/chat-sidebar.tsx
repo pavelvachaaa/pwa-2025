@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useMemo, useState, useEffect, useCallback, useDeferredValue } from "react"
 import { Search, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth/context"
 import { useChat } from "@/lib/chat/context"
-import type { Conversation } from "@/types"
 import { cn } from "@/lib/utils"
 
 interface ChatSidebarProps {
@@ -17,202 +16,165 @@ interface ChatSidebarProps {
   onSelectConversation: (id: string) => void
 }
 
-export function ChatSidebar({
-  selectedConversationId,
-  onSelectConversation,
-}: ChatSidebarProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [userPresence, setUserPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
+export function ChatSidebar({ selectedConversationId, onSelectConversation }: ChatSidebarProps) {
+  const [query, setQuery] = useState("")
+  const deferredQuery = useDeferredValue(query)
+  const [presence, setPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
 
   const { user, logout } = useAuth()
-  const { conversations, onUserPresenceUpdate } = useChat()
+  const { conversations, onUserPresenceUpdate, loading } = useChat()
 
-  // Handle user presence updates
-  const handlePresenceUpdate = useCallback((userId: string, status: string, lastSeen?: Date) => {
-    console.log('[ChatSidebar] Presence update received:', { userId, status, lastSeen })
-    setUserPresence(prev => ({
-      ...prev,
-      [userId]: { status, lastSeen }
-    }))
+  // Presence subscription
+  const handlePresence = useCallback((userId: string, status: string, lastSeen?: Date) => {
+    setPresence((prev) => ({ ...prev, [userId]: { status, lastSeen } }))
   }, [])
+  useEffect(() => onUserPresenceUpdate(handlePresence), [onUserPresenceUpdate, handlePresence])
 
-  // Subscribe to presence updates
-  useEffect(() => {
-    const unsubscribe = onUserPresenceUpdate(handlePresenceUpdate)
-    return unsubscribe
-  }, [onUserPresenceUpdate, handlePresenceUpdate])
+  const currentUserId = user?.id || ""
 
-  const currentUserId = user?.id || ''
+  const filtered = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase()
+    return conversations.filter((c) => {
+      const name = c.type === "group"
+        ? (c.name || "Unnamed Group")
+        : (c.participants?.find((p) => p.id !== currentUserId)?.display_name || "Unknown User")
+      return q ? name.toLowerCase().includes(q) : true
+    })
+  }, [conversations, deferredQuery, currentUserId])
 
-  const filteredConversations = conversations.filter((conv) => {
-    let name = 'Unknown';
-
-    if (conv.type === 'group') {
-      name = conv.name || 'Unnamed Group';
-    } else if (conv.type === 'dm') {
-      const otherParticipant = conv.participants?.find(
-        (participant) => participant.id !== currentUserId
-      );
-      if (otherParticipant) {
-        name = otherParticipant.display_name || 'Unknown User';
-      }
-    }
-
-    return name.toLowerCase().includes(searchQuery.toLowerCase())
-  })
-
-  const formatLastMessageTime = (date: Date) => {
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / (1000 * 60))
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-    if (minutes < 1) return "now"
-    if (minutes < 60) return `${minutes}m`
-    if (hours < 24) return `${hours}h`
+  const formatLastMessageTime = (iso?: string) => {
+    if (!iso) return "";
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return "";
+    const now = Date.now()
+    const diff = now - d.getTime()
+    const m = Math.floor(diff / 6e4)
+    const h = Math.floor(diff / 36e5)
+    const days = Math.floor(diff / 864e5)
+    if (m < 1) return "now"
+    if (m < 60) return `${m}m`
+    if (h < 24) return `${h}h`
     if (days < 7) return `${days}d`
-    return date.toLocaleDateString()
+    return d.toLocaleDateString()
   }
 
-
   return (
-    <div className="flex flex-col h-full bg-sidebar">
+    <aside className="flex h-full flex-col bg-sidebar" aria-label="Conversations sidebar">
       {/* Header */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+      <div className="border-b border-sidebar-border p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <Avatar className="h-8 w-8">
               <AvatarImage src={user?.avatar_url || "/placeholder.svg"} />
               <AvatarFallback>{user?.display_name?.charAt(0)}</AvatarFallback>
             </Avatar>
-            <div>
-              <h2 className="font-semibold text-sidebar-foreground">{user?.display_name}</h2>
+            <div className="min-w-0">
+              <h2 className="truncate font-semibold text-sidebar-foreground">{user?.display_name}</h2>
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="h-2 w-2 rounded-full bg-green-500" />
                 <span className="text-xs text-sidebar-foreground/70">Online</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={logout}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={logout} aria-label="Log out">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/50" />
           <Input
             placeholder="Filter conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             className="pl-10 bg-sidebar-accent border-sidebar-border"
+            aria-label="Filter conversations"
           />
         </div>
       </div>
 
       <Separator className="bg-sidebar-border" />
 
-      {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-2">
-          {filteredConversations.map((conversation) => {
-            let name = 'Unknown';
-            let avatar = '/placeholder.svg';
-
-            if (conversation.type === 'group') {
-              name = conversation.name || 'Unnamed Group';
-              avatar = conversation.avatar_url || '/placeholder.svg';
-            } else if (conversation.type === 'dm') {
-              const otherParticipant = conversation.participants?.find(
-                (participant) => participant.id !== currentUserId
-              );
-              if (otherParticipant) {
-                name = otherParticipant.display_name || 'Unknown User';
-                avatar = otherParticipant.avatar_url || '/placeholder.svg';
-              }
-            }
-
-            const otherUser = conversation.type === 'dm'
-              ? conversation.participants?.find(p => p.id !== currentUserId)
-              : null;
-            const realtimePresence = otherUser ? userPresence[otherUser.id] : null;
-            const userStatus = realtimePresence?.status || otherUser?.status || 'offline';
-
-            const isSelected = conversation.id === selectedConversationId
+      {/* List */}
+      <div className="flex-1 overflow-y-auto p-2">
+        {loading ? (
+          <div className="p-3 text-sm text-sidebar-foreground/70">Loading conversations…</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-3 text-sm text-sidebar-foreground/70">No conversations</div>
+        ) : (
+          filtered.map((c) => {
+            const isSelected = c.id === selectedConversationId
+            const isDM = c.type === "dm"
+            const other = isDM ? c.participants?.find((p) => p.id !== currentUserId) : null
+            const name = isDM ? (other?.display_name || "Unknown User") : (c.name || "Unnamed Group")
+            const avatar = isDM ? (other?.avatar_url || "/placeholder.svg") : (c.avatar_url || "/placeholder.svg")
+            const status = other ? (presence[other.id]?.status || other.status || "offline") : ""
 
             return (
               <button
-                key={conversation.id}
-                onClick={() => onSelectConversation(conversation.id)}
+                key={c.id}
+                onClick={() => onSelectConversation(c.id)}
                 className={cn(
-                  "w-full p-3 rounded-lg text-left hover:bg-sidebar-accent transition-colors",
-                  isSelected && "bg-sidebar-accent",
+                  "w-full rounded-lg p-3 text-left transition-colors hover:bg-sidebar-accent",
+                  isSelected && "bg-sidebar-accent"
                 )}
+                aria-current={isSelected ? "true" : undefined}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={avatar || "/placeholder.svg"} />
+                      <AvatarImage src={avatar} />
                       <AvatarFallback>{name.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    {conversation.type === "dm" && (
-                      <div className={cn(
-                        "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-sidebar",
-                        userStatus === 'online' && "bg-green-500",
-                        userStatus === 'away' && "bg-yellow-500",
-                        userStatus === 'offline' && "bg-gray-500"
-                      )}></div>
+                    {isDM && (
+                      <span
+                        className={cn(
+                          "absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-sidebar",
+                          status === "online" && "bg-green-500",
+                          status === "away" && "bg-yellow-500",
+                          status === "offline" && "bg-gray-500"
+                        )}
+                        aria-label={`Status: ${status}`}
+                      />
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium text-sidebar-foreground truncate">{name}</h3>
-                      {conversation.last_message && (
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center justify-between">
+                      <h3 className="truncate font-medium text-sidebar-foreground">{name}</h3>
+                      {c.last_message && (
                         <span className="text-xs text-sidebar-foreground/60">
-                          {formatLastMessageTime(new Date(conversation.last_message.created_at))}
+                          {formatLastMessageTime(c.last_message.created_at)}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-sidebar-foreground/70 truncate">
-                        {conversation.last_message?.content || "No messages yet"}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm text-sidebar-foreground/70">
+                        {c.last_message?.content || "No messages yet"}
                       </p>
-                      {conversation.unread_count > 0 && (
-                        <Badge variant="default" className="ml-2 h-5 min-w-5 text-xs bg-primary">
-                          {conversation.unread_count}
-                        </Badge>
+                      {!!c.unread_count && c.unread_count > 0 && (
+                        <Badge variant="default" className="ml-2 h-5 min-w-5 text-xs bg-primary">{c.unread_count}</Badge>
                       )}
                     </div>
 
-                    {conversation.isTyping && conversation.isTyping.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1">
+                    {Array.isArray((c as any).isTyping) && (c as any).isTyping.length > 0 && (
+                      <div className="mt-1 flex items-center gap-1">
                         <div className="flex gap-1">
-                          <div className="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
-                          <div
-                            className="w-1 h-1 bg-primary rounded-full animate-bounce"
-                            style={{ animationDelay: "0.1s" }}
-                          ></div>
-                          <div
-                            className="w-1 h-1 bg-primary rounded-full animate-bounce"
-                            style={{ animationDelay: "0.2s" }}
-                          ></div>
+                          <span className="h-1 w-1 animate-bounce rounded-full bg-primary" />
+                          <span className="h-1 w-1 animate-bounce rounded-full bg-primary" style={{ animationDelay: "0.1s" }} />
+                          <span className="h-1 w-1 animate-bounce rounded-full bg-primary" style={{ animationDelay: "0.2s" }} />
                         </div>
-                        <span className="text-xs text-primary">typing...</span>
+                        <span className="text-xs text-primary">typing…</span>
                       </div>
                     )}
                   </div>
                 </div>
               </button>
             )
-          })}
-        </div>
+          })
+        )}
       </div>
-
-    </div>
+    </aside>
   )
 }
