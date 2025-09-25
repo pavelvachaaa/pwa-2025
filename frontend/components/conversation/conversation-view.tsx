@@ -39,9 +39,14 @@ export function ConversationView({
         joinConversation,
         leaveConversation,
         onUserPresenceUpdate,
+        startTyping,
+        stopTyping,
+        onTypingStart,
+        onTypingStop,
     } = useChat()
 
     const [presence, setPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
+    const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
 
     const [items, setItems] = useState<Message[]>([])
     const [messagesLoading, setMessagesLoading] = useState(true)
@@ -92,6 +97,30 @@ export function ConversationView({
         })
     }, [onUserPresenceUpdate])
 
+    // Typing indicators
+    useEffect(() => {
+        const offTypingStart = onTypingStart((conversationId, userId) => {
+            if (conversationId === conversation.id && userId !== user?.id) {
+                setTypingUsers(prev => new Set([...prev, userId]))
+            }
+        })
+
+        const offTypingStop = onTypingStop((conversationId, userId) => {
+            if (conversationId === conversation.id) {
+                setTypingUsers(prev => {
+                    const newSet = new Set(prev)
+                    newSet.delete(userId)
+                    return newSet
+                })
+            }
+        })
+
+        return () => {
+            offTypingStart()
+            offTypingStop()
+        }
+    }, [conversation.id, onTypingStart, onTypingStop, user?.id])
+
     const send = (content: string) => sendMessage(conversation.id, content)
     const grouped = useMemo(() => items, [items])
     const scrollToBottom = () => endRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -124,8 +153,9 @@ export function ConversationView({
     })()
 
     return (
-        <div className="flex h-full flex-col">
-            <div className="flex items-center gap-2 border-b p-3">
+        <div className="flex h-full max-h-screen flex-col overflow-hidden">
+            {/* Fixed Header */}
+            <div className="flex-shrink-0 flex items-center gap-2 border-b p-3 bg-background">
                 {onBack ? (
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onBack}>
                         <ArrowLeft className="h-4 w-4" />
@@ -147,7 +177,8 @@ export function ConversationView({
                 </div>
             </div>
 
-            <ScrollArea className="flex-1 p-3">
+            {/* Scrollable Messages Area */}
+            <div className="flex-1 overflow-y-auto p-3">
                 <div className="space-y-2">
                     {messagesLoading ? (
                         <div className="flex items-center justify-center p-8 text-muted-foreground">
@@ -170,11 +201,34 @@ export function ConversationView({
                             )
                         })
                     )}
+
+                    {/* Typing indicators */}
+                    {typingUsers.size > 0 && (
+                        <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
+                            <div className="flex gap-1">
+                                <span className="h-1 w-1 animate-bounce rounded-full bg-primary" />
+                                <span className="h-1 w-1 animate-bounce rounded-full bg-primary" style={{ animationDelay: "0.1s" }} />
+                                <span className="h-1 w-1 animate-bounce rounded-full bg-primary" style={{ animationDelay: "0.2s" }} />
+                            </div>
+                            <span>
+                                {typingUsers.size === 1 ? "Someone is typing..." : `${typingUsers.size} people are typing...`}
+                            </span>
+                        </div>
+                    )}
+
                     <div ref={endRef} />
                 </div>
-            </ScrollArea>
+            </div>
 
-            <MessageComposer disabled={!wsConnected} onSend={send} />
+            {/* Fixed Composer */}
+            <div className="flex-shrink-0">
+                <MessageComposer
+                    disabled={!wsConnected}
+                    onSend={send}
+                    onStartTyping={() => startTyping(conversation.id)}
+                    onStopTyping={() => stopTyping(conversation.id)}
+                />
+            </div>
         </div>
     )
 }

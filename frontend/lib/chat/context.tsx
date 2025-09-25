@@ -22,6 +22,12 @@ interface ChatContextType {
   joinConversation: (conversationId: string) => Promise<void>
   leaveConversation: (conversationId: string) => void
 
+  // Typing indicators
+  startTyping: (conversationId: string) => void
+  stopTyping: (conversationId: string) => void
+  onTypingStart: (callback: (conversationId: string, userId: string) => void) => () => void
+  onTypingStop: (callback: (conversationId: string, userId: string) => void) => () => void
+
   // Message operations
   editMessage: (messageId: string, content: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
@@ -176,6 +182,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return wsClient.presence.onUserPresenceUpdate(handler)
   }, [])
 
+  // Typing indicators
+  const startTyping = useCallback((conversationId: string) => {
+    if (!wsConnected) return
+    wsClient.chat.startTyping(conversationId)
+  }, [wsConnected])
+
+  const stopTyping = useCallback((conversationId: string) => {
+    if (!wsConnected) return
+    wsClient.chat.stopTyping(conversationId)
+  }, [wsConnected])
+
+  const onTypingStart = useCallback((callback: (conversationId: string, userId: string) => void) => {
+    const handler = (data: { conversationId: string; userId: string }) => {
+      callback(data.conversationId, data.userId)
+    }
+
+    return wsClient.chat.onTypingStart(handler)
+  }, [])
+
+  const onTypingStop = useCallback((callback: (conversationId: string, userId: string) => void) => {
+    const handler = (data: { conversationId: string; userId: string }) => {
+      callback(data.conversationId, data.userId)
+    }
+
+    return wsClient.chat.onTypingStop(handler)
+  }, [])
+
   // Load conversations when authenticated
   useEffect(() => {
     loadConversations()
@@ -273,6 +306,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Message operations
         editMessage,
         deleteMessage,
+
+        // Typing indicators
+        startTyping,
+        stopTyping,
+        onTypingStart,
+        onTypingStop,
 
         // Real-time updates
         onNewMessage,

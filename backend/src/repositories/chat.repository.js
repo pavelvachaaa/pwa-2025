@@ -2,7 +2,6 @@ const pool = require('@/database/config');
 const logger = require('@utils/logger');
 
 class ChatRepository {
-  // Conversations
   async createConversation({ userAId, userBId, createdBy, avatarUrl = null }) {
     const result = await pool.query(
       `INSERT INTO conversations (user_a_id, user_b_id, created_by, avatar_url)
@@ -68,6 +67,20 @@ class ChatRepository {
   async getConversationById(conversationId, userId) {
     logger.debug({ conversationId, userId }, 'Repository: Querying conversation by ID');
 
+    const participantCheck = await pool.query(`
+      SELECT c.*, user_a.display_name as user_a_name, user_b.display_name as user_b_name
+      FROM conversations c
+      LEFT JOIN users user_a ON c.user_a_id = user_a.id
+      LEFT JOIN users user_b ON c.user_b_id = user_b.id
+      WHERE c.id = $1::uuid
+      AND (c.user_a_id = $2::uuid OR c.user_b_id = $2::uuid)
+    `, [conversationId, userId]);
+
+    if (participantCheck.rows.length === 0) {
+      logger.warn({ conversationId, userId }, 'User is not a participant or conversation not found');
+      return null;
+    }
+
     const result = await pool.query(`
       SELECT
         c.*,
@@ -100,11 +113,11 @@ class ChatRepository {
           'last_seen', up_other.last_seen
         ) as other_participant
       FROM conversations c
-      JOIN users user_a ON c.user_a_id = user_a.id
-      JOIN users user_b ON c.user_b_id = user_b.id
+      LEFT JOIN users user_a ON c.user_a_id = user_a.id
+      LEFT JOIN users user_b ON c.user_b_id = user_b.id
       LEFT JOIN user_presence up_a ON user_a.id = up_a.user_id
       LEFT JOIN user_presence up_b ON user_b.id = up_b.user_id
-      JOIN users other_user ON (
+      LEFT JOIN users other_user ON (
         CASE
           WHEN c.user_a_id = $2::uuid THEN c.user_b_id
           ELSE c.user_a_id
@@ -112,7 +125,6 @@ class ChatRepository {
       )
       LEFT JOIN user_presence up_other ON other_user.id = up_other.user_id
       WHERE c.id = $1::uuid
-      AND (c.user_a_id = $2::uuid OR c.user_b_id = $2::uuid)
     `, [conversationId, userId]);
 
     logger.debug({ conversationId, userId, rowCount: result.rows.length }, 'Repository: Query result');
@@ -127,6 +139,26 @@ class ChatRepository {
       FROM conversations c
       WHERE c.conv_a = LEAST($1::uuid, $2::uuid) AND c.conv_b = GREATEST($1::uuid, $2::uuid)
     `, [userId1, userId2]);
+
+    return result.rows[0];
+  }
+
+  async isUserParticipant(conversationId, userId) {
+    const result = await pool.query(`
+      SELECT 1 FROM conversations
+      WHERE id = $1::uuid
+      AND (user_a_id = $2::uuid OR user_b_id = $2::uuid)
+    `, [conversationId, userId]);
+
+    return result.rows.length > 0;
+  }
+
+  async getUserById(userId) {
+    const result = await pool.query(`
+      SELECT id, display_name, email, avatar_url
+      FROM users
+      WHERE id = $1::uuid AND is_active = true
+    `, [userId]);
 
     return result.rows[0];
   }

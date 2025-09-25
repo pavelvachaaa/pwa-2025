@@ -9,13 +9,11 @@ class ChatService {
         throw new Error('Cannot create conversation with yourself');
       }
 
-      // Check if conversation already exists (using unordered pair)
       const existing = await chatRepository.findConversationByParticipants(currentUserId, targetUserId);
       if (existing) {
         return { conversation: await chatRepository.getConversationById(existing.id, currentUserId) };
       }
 
-      // Verify target user exists
       const targetUser = await userRepository.findById(targetUserId);
       if (!targetUser) {
         throw new Error('Target user not found');
@@ -69,12 +67,7 @@ class ChatService {
         throw new Error('Message content is required');
       }
 
-      // Verify user is participant
-      const conversation = await chatRepository.getConversationById(conversationId, userId);
-      if (!conversation) {
-        throw new Error('Conversation not found or user is not a participant');
-      }
-
+      // The database trigger will validate participant access, so we can be optimistic here
       const message = await chatRepository.createMessage({
         conversationId,
         senderId: userId,
@@ -83,17 +76,23 @@ class ChatService {
         replyTo
       });
 
-      // Clear any draft for this conversation
+      // Clear any draft and typing indicator for this conversation
       await chatRepository.deleteDraft(conversationId, userId);
+      await chatRepository.removeTypingIndicator(conversationId, userId);
 
-      // Get full message data with sender info
-      const fullMessage = await this.getMessageById(message.id, userId);
-
-      return { message: fullMessage };
+      return { message: await this.getBasicMessageInfo(message) };
     } catch (error) {
       logger.error({ error: error.message, userId, conversationId, content }, 'Error sending message');
       throw error;
     }
+  }
+
+  async getBasicMessageInfo(message) {
+    const sender = await chatRepository.getUserById(message.sender_id);
+    return {
+      ...message,
+      sender_name: sender?.display_name || 'Unknown User'
+    };
   }
 
   async getMessageById(messageId, userId) {

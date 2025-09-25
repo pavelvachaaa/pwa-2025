@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 export function ChatLayout() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
     const [showDetails, setShowDetails] = useState(false)
+    const [hasNavigatedBack, setHasNavigatedBack] = useState(false)
     const { user } = useAuth()
     const { conversations, loading } = useChat()
     const isMobile = useIsMobile()
@@ -26,11 +27,12 @@ export function ChatLayout() {
     }, [selectedConversationId])
 
     useEffect(() => {
-        if (!loading && (!selectedConversationId || !conversations.some((c) => c.id === selectedConversationId))) {
+        // Only auto-select first conversation on initial load, not after mobile navigation back
+        if (!loading && !hasNavigatedBack && (!selectedConversationId || !conversations.some((c) => c.id === selectedConversationId))) {
             const first = conversations[0]
             setSelectedConversationId(first ? first.id : null)
         }
-    }, [loading, conversations, selectedConversationId])
+    }, [loading, conversations, selectedConversationId, hasNavigatedBack])
 
     const selectedConversation = selectedConversationId
         ? conversations.find((c) => c.id === selectedConversationId) || null
@@ -38,11 +40,15 @@ export function ChatLayout() {
 
     const handleSelectConversation = (id: string) => {
         setSelectedConversationId(id)
+        setHasNavigatedBack(false) // Reset when user explicitly selects a conversation
         if (isMobile) setShowDetails(false)
     }
 
     const handleBackToSidebar = () => {
-        if (isMobile) setSelectedConversationId(null)
+        if (isMobile) {
+            setSelectedConversationId(null)
+            setHasNavigatedBack(true)
+        }
     }
 
     if (!user) return null

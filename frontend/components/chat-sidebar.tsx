@@ -21,16 +21,50 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [presence, setPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
+  const [conversationTyping, setConversationTyping] = useState<Record<string, Set<string>>>({})
   const [showNewChatModal, setShowNewChatModal] = useState(false)
 
   const { user, logout } = useAuth()
-  const { conversations, createConversation, onUserPresenceUpdate, loading } = useChat()
+  const { conversations, createConversation, onUserPresenceUpdate, onTypingStart, onTypingStop, loading } = useChat()
 
   // Presence subscription
   const handlePresence = useCallback((userId: string, status: string, lastSeen?: Date) => {
     setPresence((prev) => ({ ...prev, [userId]: { status, lastSeen } }))
   }, [])
   useEffect(() => onUserPresenceUpdate(handlePresence), [onUserPresenceUpdate, handlePresence])
+
+  // Typing indicators subscription
+  useEffect(() => {
+    const offTypingStart = onTypingStart((conversationId, userId) => {
+      if (userId !== user?.id) {
+        setConversationTyping(prev => ({
+          ...prev,
+          [conversationId]: new Set([...(prev[conversationId] || []), userId])
+        }))
+      }
+    })
+
+    const offTypingStop = onTypingStop((conversationId, userId) => {
+      setConversationTyping(prev => {
+        const newTyping = { ...prev }
+        if (newTyping[conversationId]) {
+          const newSet = new Set(newTyping[conversationId])
+          newSet.delete(userId)
+          if (newSet.size === 0) {
+            delete newTyping[conversationId]
+          } else {
+            newTyping[conversationId] = newSet
+          }
+        }
+        return newTyping
+      })
+    })
+
+    return () => {
+      offTypingStart()
+      offTypingStop()
+    }
+  }, [onTypingStart, onTypingStop, user?.id])
 
   const currentUserId = user?.id || ""
 
@@ -169,14 +203,16 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
 
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm text-sidebar-foreground/70">
-                        {c.last_message?.content || "No messages yet"}
+                        {conversationTyping[c.id] && conversationTyping[c.id].size > 0
+                          ? "typing..."
+                          : c.last_message?.content || "No messages yet"}
                       </p>
                       {!!c.unread_count && c.unread_count > 0 && (
                         <Badge variant="default" className="ml-2 h-5 min-w-5 text-xs bg-primary">{c.unread_count}</Badge>
                       )}
                     </div>
 
-                    {Array.isArray((c as any).isTyping) && (c as any).isTyping.length > 0 && (
+                    {conversationTyping[c.id] && conversationTyping[c.id].size > 0 && (
                       <div className="mt-1 flex items-center gap-1">
                         <div className="flex gap-1">
                           <span className="h-1 w-1 animate-bounce rounded-full bg-primary" />
