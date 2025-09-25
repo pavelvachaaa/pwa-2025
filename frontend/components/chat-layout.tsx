@@ -6,7 +6,7 @@ import { ConversationView } from "./conversation-view"
 import { ConversationDetails } from "./conversation-details"
 import { useChat } from "@/hooks/use-chat"
 import { useAuth } from "@/lib/auth/context"
-import { useIsMobile } from "@/components/ui/use-mobile"
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export function ChatLayout() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)

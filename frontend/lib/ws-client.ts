@@ -1,5 +1,6 @@
 import type { WSClientConfig, WSEventHandler } from '@/types';
 import { io, Socket } from 'socket.io-client';
+import { api } from './api/api';
 
 class WSClient {
   private socket: Socket | null = null
@@ -19,7 +20,7 @@ class WSClient {
   }
 
   async connect(userId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise( async (resolve, reject) => {
       if (this.socket?.connected) {
         resolve()
         return
@@ -33,8 +34,8 @@ class WSClient {
       this.isConnecting = true
 
       try {
-        // Get auth token from localStorage or make API call to get it
-        const token = this.getAuthToken()
+        // Get auth token from API
+        const token = await this.getAuthToken()
         if (!token) {
           throw new Error('Authentication token not found')
         }
@@ -81,13 +82,16 @@ class WSClient {
     })
   }
 
-  private getAuthToken(): string | null {
+  private async getAuthToken(): Promise<string | null> {
     try {
-      // In a real implementation, this would get the JWT token from the auth context
-      // Since we're using httpOnly cookies, we can't access the token directly
-      // The WebSocket authentication will be handled by the server middleware
-      // For now, we'll send a placeholder that the server can validate against the session
-      return 'authenticated-user'
+      const response = await api.get<{ token: string }>('/auth/getToken')
+
+      if (response.success && response.data?.token) {
+        return response.data.token
+      }
+
+      console.error('[WS] Failed to get auth token:', response.error)
+      return null
     } catch (error) {
       console.error('[WS] Failed to get auth token:', error)
       return null

@@ -29,11 +29,8 @@ class WebSocketHandler {
           throw new Error('Authentication token required');
         }
 
-        // TODO: Teď nemužu z frontendu accessnout secure httpCookie (domyslet) 
-        // /api/v1/auth/getToken
-        // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        // socket.userId = decoded.userId;
-        socket.userId = "2ee76d5b-6d3d-4f08-8f93-0319b944c040"
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.userId;
 
         logger.info({ userId: socket.userId, socketId: socket.id }, 'WebSocket authentication successful');
         next();

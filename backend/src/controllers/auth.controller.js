@@ -2,6 +2,7 @@ const authService = require('@services/auth.service');
 const { validate } = require('@middlewares/validate');
 const schemas = require('@/schemas/auth.schemas');
 const logger = require('@utils/logger').child({ module: 'authController' });
+const { verifyToken } = require('@utils/jwt/jwt');
 
 class AuthController {
   _setCookies(res, accessToken, refreshToken) {
@@ -87,16 +88,16 @@ class AuthController {
       const decoded = verifyToken(token);
       return res.status(200).json({
         success: true,
-        data: token
+        data: { "token": token }
       });
     } catch (e) {
 
       logger.warn({
-        err: error,
+        err: e,
         token: token.substring(0, 20) + '...'
       }, 'JWT verification failed');
 
-      if (error.name === 'TokenExpiredError') {
+      if (e.name === 'TokenExpiredError') {
         return res.status(401).json({
           success: false,
           error: 'Access token expired',
@@ -104,7 +105,7 @@ class AuthController {
         });
       }
 
-      next(error);
+      next(e);
 
 
     }
