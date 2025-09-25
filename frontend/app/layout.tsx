@@ -5,7 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Suspense } from "react"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth/context"
-import { ChatProvider } from "@/hooks/use-chat"
+import { ChatProvider } from "@/lib/chat/context"
 
 export const metadata: Metadata = {
     title: "PainChat",

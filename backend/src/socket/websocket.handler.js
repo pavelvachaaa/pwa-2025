@@ -30,7 +30,15 @@ class WebSocketHandler {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.userId = decoded.userId;
+        logger.debug({ decoded }, 'JWT token decoded successfully');
+
+        // The JWT uses 'sub' field for the user ID (subject)
+        socket.userId = decoded.sub;
+
+        if (!socket.userId) {
+          logger.error({ decoded }, 'No sub (user ID) found in JWT token');
+          throw new Error('Invalid token: no user ID found');
+        }
 
         logger.info({ userId: socket.userId, socketId: socket.id }, 'WebSocket authentication successful');
         next();
@@ -52,12 +60,20 @@ class WebSocketHandler {
 
     logger.info({ userId, socketId: socket.id }, 'User connected to WebSocket');
 
+    // Validate userId before proceeding
+    if (!userId) {
+      logger.error({ socketId: socket.id }, 'User ID is null or undefined in WebSocket connection');
+      socket.disconnect();
+      return;
+    }
+
     if (!this.connectedUsers.has(userId)) {
       this.connectedUsers.set(userId, new Set());
     }
     this.connectedUsers.get(userId).add(socket.id);
     this.userSockets.set(socket.id, userId);
 
+    logger.debug({ userId }, 'Setting user presence to online');
     this.updateUserPresence(userId, 'online');
 
     this.setupEventHandlers(socket);
@@ -75,9 +91,14 @@ class WebSocketHandler {
       try {
         const { conversationId } = data;
 
+        logger.debug({ userId, conversationId }, 'Attempting to join conversation');
+
         // Verify user is participant in the conversation
-        const conversation = await chatService.getConversationById?.(conversationId, userId);
+        const conversation = await chatService.getConversationById(conversationId, userId);
+        logger.debug({ userId, conversationId, conversation: !!conversation }, 'Conversation lookup result');
+
         if (!conversation) {
+          logger.warn({ userId, conversationId }, 'User attempted to join conversation they are not a participant in');
           socket.emit('error', { message: 'Cannot join conversation: not a participant' });
           return;
         }
@@ -94,7 +115,7 @@ class WebSocketHandler {
 
         socket.emit('conversation:joined', { conversationId });
       } catch (error) {
-        logger.error({ error: error.message, userId }, 'Error joining conversation');
+        logger.error({ error: error.message, userId, conversationId }, 'Error joining conversation');
         socket.emit('error', { message: 'Failed to join conversation' });
       }
     });
@@ -268,6 +289,24 @@ class WebSocketHandler {
       }
     });
 
+    // Handle explicit logout request
+    socket.on('user:logout', async () => {
+      try {
+        // Update user presence to offline
+        await this.updateUserPresence(userId, 'offline');
+
+        logger.debug({ userId }, 'User logged out and presence updated to offline');
+
+        // Disconnect the socket after a short delay to ensure the presence update is broadcast
+        setTimeout(() => {
+          socket.disconnect(true);
+        }, 50);
+
+      } catch (error) {
+        logger.error({ error: error.message, userId }, 'Error during logout');
+      }
+    });
+
     // Presence updates
     socket.on('presence:update', async (data) => {
       try {
@@ -309,14 +348,29 @@ class WebSocketHandler {
 
   async updateUserPresence(userId, status) {
     try {
+      // Validate inputs
+      if (!userId) {
+        logger.error({ userId, status }, 'Cannot update presence: userId is null or undefined');
+        return;
+      }
+
+      if (!status) {
+        logger.error({ userId, status }, 'Cannot update presence: status is null or undefined');
+        return;
+      }
+
       await userService.updateUserPresence(userId, status);
 
-      // Broadcast presence update to all connected users
-      this.io.emit('presence:user_updated', {
+      const presenceData = {
         userId,
         status,
         lastSeen: status === 'offline' ? new Date() : null
-      });
+      };
+
+      logger.debug({ presenceData }, 'Broadcasting presence update to all users');
+
+      // Broadcast presence update to all connected users
+      this.io.emit('presence:user_updated', presenceData);
 
     } catch (error) {
       logger.error({ error: error.message, userId, status }, 'Error updating user presence');

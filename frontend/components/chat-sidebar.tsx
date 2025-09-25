@@ -1,46 +1,64 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Users, LogOut, Command } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { Search, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth/context"
-import { useRouter } from "next/navigation"
-import { getConversationName, getConversationAvatar, type Conversation } from "@/lib/mock-data"
+import { useChat } from "@/lib/chat/context"
+import type { Conversation } from "@/types"
 import { cn } from "@/lib/utils"
-import { NewChatModal } from "./new-chat-modal"
-import { NewGroupModal } from "./new-group-modal"
-import { useChat } from "@/hooks/use-chat"
-import { GlobalSearch } from "./global-search" // Import GlobalSearch component
 
 interface ChatSidebarProps {
-  conversations: Conversation[]
   selectedConversationId: string | null
   onSelectConversation: (id: string) => void
-  currentUserId: string
 }
 
 export function ChatSidebar({
-  conversations,
   selectedConversationId,
   onSelectConversation,
-  currentUserId,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [showNewChatModal, setShowNewChatModal] = useState(false)
-  const [showNewGroupModal, setShowNewGroupModal] = useState(false)
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false)
+  const [userPresence, setUserPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
 
   const { user, logout } = useAuth()
-  const router = useRouter()
-  const { createDirectMessage, createGroupChat } = useChat()
+  const { conversations, onUserPresenceUpdate } = useChat()
+
+  // Handle user presence updates
+  const handlePresenceUpdate = useCallback((userId: string, status: string, lastSeen?: Date) => {
+    console.log('[ChatSidebar] Presence update received:', { userId, status, lastSeen })
+    setUserPresence(prev => ({
+      ...prev,
+      [userId]: { status, lastSeen }
+    }))
+  }, [])
+
+  // Subscribe to presence updates
+  useEffect(() => {
+    const unsubscribe = onUserPresenceUpdate(handlePresenceUpdate)
+    return unsubscribe
+  }, [onUserPresenceUpdate, handlePresenceUpdate])
+
+  const currentUserId = user?.id || ''
 
   const filteredConversations = conversations.filter((conv) => {
-    const name = getConversationName(conv, currentUserId).toLowerCase()
-    return name.includes(searchQuery.toLowerCase())
+    let name = 'Unknown';
+
+    if (conv.type === 'group') {
+      name = conv.name || 'Unnamed Group';
+    } else if (conv.type === 'dm') {
+      const otherParticipant = conv.participants?.find(
+        (participant) => participant.id !== currentUserId
+      );
+      if (otherParticipant) {
+        name = otherParticipant.display_name || 'Unknown User';
+      }
+    }
+
+    return name.toLowerCase().includes(searchQuery.toLowerCase())
   })
 
   const formatLastMessageTime = (date: Date) => {
@@ -57,19 +75,6 @@ export function ChatSidebar({
     return date.toLocaleDateString()
   }
 
-  const handleStartChat = async (userId: string) => {
-    const conversationId = await createDirectMessage(userId)
-    if (conversationId) {
-      onSelectConversation(conversationId)
-    }
-  }
-
-  const handleCreateGroup = async (name: string, participants: string[], avatar?: string) => {
-    const conversationId = await createGroupChat(name, participants, avatar)
-    if (conversationId) {
-      onSelectConversation(conversationId)
-    }
-  }
 
   return (
     <div className="flex flex-col h-full bg-sidebar">
@@ -97,50 +102,15 @@ export function ChatSidebar({
         </div>
 
         {/* Search */}
-        <div className="space-y-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2 bg-sidebar-accent border-sidebar-border text-sidebar-foreground/70"
-            onClick={() => setShowGlobalSearch(true)}
-          >
-            <Command className="h-4 w-4" />
-            Search messages, contacts...
-            <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-              <span className="text-xs">⌘</span>K
-            </kbd>
-          </Button>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
-            <Input
-              placeholder="Filter conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-sidebar-accent border-sidebar-border"
-            />
-          </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
+          <Input
+            placeholder="Filter conversations..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 bg-sidebar-accent border-sidebar-border"
+          />
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="p-4 space-y-2">
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2 bg-sidebar-accent border-sidebar-border"
-          onClick={() => setShowNewChatModal(true)}
-        >
-          <Plus className="h-4 w-4" />
-          New Chat
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2 bg-sidebar-accent border-sidebar-border"
-          onClick={() => setShowNewGroupModal(true)}
-        >
-          <Users className="h-4 w-4" />
-          New Group
-        </Button>
-
       </div>
 
       <Separator className="bg-sidebar-border" />
@@ -149,12 +119,28 @@ export function ChatSidebar({
       <div className="flex-1 overflow-y-auto">
         <div className="p-2">
           {filteredConversations.map((conversation) => {
-            // TODO: Získání správného jména pro skupiny
-            // const name = getConversationName(conversation, currentUserId)
-            // const avatar = getConversationAvatar(conversation, currentUserId)
+            let name = 'Unknown';
+            let avatar = '/placeholder.svg';
 
-            const name = (conversation.participants[1] as any).display_name;
-            const avatar = getConversationAvatar(conversation, currentUserId)
+            if (conversation.type === 'group') {
+              name = conversation.name || 'Unnamed Group';
+              avatar = conversation.avatar_url || '/placeholder.svg';
+            } else if (conversation.type === 'dm') {
+              const otherParticipant = conversation.participants?.find(
+                (participant) => participant.id !== currentUserId
+              );
+              if (otherParticipant) {
+                name = otherParticipant.display_name || 'Unknown User';
+                avatar = otherParticipant.avatar_url || '/placeholder.svg';
+              }
+            }
+
+            const otherUser = conversation.type === 'dm'
+              ? conversation.participants?.find(p => p.id !== currentUserId)
+              : null;
+            const realtimePresence = otherUser ? userPresence[otherUser.id] : null;
+            const userStatus = realtimePresence?.status || otherUser?.status || 'offline';
+
             const isSelected = conversation.id === selectedConversationId
 
             return (
@@ -173,27 +159,32 @@ export function ChatSidebar({
                       <AvatarFallback>{name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     {conversation.type === "dm" && (
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-sidebar"></div>
+                      <div className={cn(
+                        "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-sidebar",
+                        userStatus === 'online' && "bg-green-500",
+                        userStatus === 'away' && "bg-yellow-500",
+                        userStatus === 'offline' && "bg-gray-500"
+                      )}></div>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="font-medium text-sidebar-foreground truncate">{name}</h3>
-                      {conversation.lastMessage && (
+                      {conversation.last_message && (
                         <span className="text-xs text-sidebar-foreground/60">
-                          {formatLastMessageTime(conversation.lastMessage.timestamp)}
+                          {formatLastMessageTime(new Date(conversation.last_message.created_at))}
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-sidebar-foreground/70 truncate">
-                        {conversation.lastMessage?.content || "No messages yet"}
+                        {conversation.last_message?.content || "No messages yet"}
                       </p>
-                      {conversation.unreadCount > 0 && (
+                      {conversation.unread_count > 0 && (
                         <Badge variant="default" className="ml-2 h-5 min-w-5 text-xs bg-primary">
-                          {conversation.unreadCount}
+                          {conversation.unread_count}
                         </Badge>
                       )}
                     </div>
@@ -222,17 +213,6 @@ export function ChatSidebar({
         </div>
       </div>
 
-      {/* Modal Components */}
-      <NewChatModal open={showNewChatModal} onOpenChange={setShowNewChatModal} onStartChat={handleStartChat} />
-
-      <NewGroupModal open={showNewGroupModal} onOpenChange={setShowNewGroupModal} onCreateGroup={handleCreateGroup} />
-      <GlobalSearch
-        open={showGlobalSearch}
-        onOpenChange={setShowGlobalSearch}
-        onSelectConversation={onSelectConversation}
-        onStartChat={handleStartChat}
-        currentUserId={currentUserId}
-      />
     </div>
   )
 }

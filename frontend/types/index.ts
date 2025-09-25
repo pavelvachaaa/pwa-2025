@@ -4,10 +4,10 @@ export type UserStatus = "online" | "away" | "offline";
 export interface User {
   id: string;
   email: string;
-  name: string;
-  avatar?: string;
-  status: UserStatus;
-  lastSeen?: Date;
+  display_name: string;
+  avatar_url?: string;
+  status?: UserStatus;
+  last_seen?: string;
 }
 
 
@@ -18,10 +18,10 @@ export interface AuthSession {
 }
 
 export interface SignUpData {
-  name: string;
+  display_name: string;
   email: string;
   password: string;
-  avatar?: string;
+  avatar_url?: string;
 }
 
 export interface AuthContextType {
@@ -136,15 +136,15 @@ export interface MessageReadStatus {
 
 export interface Message {
   id: string;
-  conversationId: string;
-  senderId: string;
+  conversation_id: string;
+  sender_id: string;
   content: string;
-  timestamp: Date;
-  type: MessageType;
+  created_at: string;
+  message_type: MessageType;
   reactions?: MessageReaction[];
-  replyTo?: string;
-  edited?: boolean;
-  editedAt?: Date;
+  reply_to?: string;
+  is_edited?: boolean;
+  edited_at?: string;
   readBy?: MessageReadStatus[];
   isPinned?: boolean;
   pinnedAt?: Date;
@@ -157,12 +157,12 @@ export interface Conversation {
   id: string;
   type: ConversationType;
   name?: string;
-  participants: string[];
-  avatar?: string;
-  lastMessage?: Message;
-  unreadCount: number;
+  participants: User[];
+  avatar_url?: string;
+  last_message?: Message;
+  unread_count: number;
   isTyping?: string[];
-  createdAt: Date;
-  updatedAt: Date;
+  created_at: string;
+  updated_at: string;
   draft?: string;
 }

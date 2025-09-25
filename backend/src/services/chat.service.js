@@ -69,6 +69,15 @@ class ChatService {
     }
   }
 
+  async getConversationById(conversationId, userId) {
+    try {
+      return await chatRepository.getConversationById(conversationId, userId);
+    } catch (error) {
+      logger.error({ error: error.message, conversationId, userId }, 'Error getting conversation by ID');
+      throw error;
+    }
+  }
+
   async getConversationMessages(conversationId, userId, { limit = 50, offset = 0 } = {}) {
     try {
       const messages = await chatRepository.getMessagesForConversation(conversationId, userId, limit, offset);

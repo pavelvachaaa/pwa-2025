@@ -61,7 +61,9 @@ class ChatRepository {
                 'display_name', u.display_name,
                 'avatar_url', u.avatar_url,
                 'is_admin', cp.is_admin,
-                'joined_at', cp.joined_at
+                'joined_at', cp.joined_at,
+                'status', COALESCE(up.status, 'offline'),
+                'last_seen', up.last_seen
               )
             END
           ) FILTER (WHERE cp.user_id IS NOT NULL),
@@ -94,6 +96,7 @@ class ChatRepository {
       JOIN conversation_participants my_cp ON c.id = my_cp.conversation_id AND my_cp.user_id = $1 AND my_cp.left_at IS NULL
       LEFT JOIN conversation_participants cp ON c.id = cp.conversation_id AND cp.left_at IS NULL
       LEFT JOIN users u ON cp.user_id = u.id
+      LEFT JOIN user_presence up ON u.id = up.user_id
       GROUP BY c.id, c.type, c.name, c.avatar_url, c.created_by, c.created_at, c.updated_at
       ORDER BY c.updated_at DESC
     `, [userId]);
@@ -102,6 +105,8 @@ class ChatRepository {
   }
 
   async getConversationById(conversationId, userId) {
+    logger.debug({ conversationId, userId }, 'Repository: Querying conversation by ID');
+
     const result = await pool.query(`
       SELECT
         c.*,
@@ -112,16 +117,34 @@ class ChatRepository {
             'display_name', u.display_name,
             'avatar_url', u.avatar_url,
             'is_admin', cp.is_admin,
-            'joined_at', cp.joined_at
+            'joined_at', cp.joined_at,
+            'status', COALESCE(up2.status, 'offline'),
+            'last_seen', up2.last_seen
           )
         ) as participants
       FROM conversations c
       JOIN conversation_participants my_cp ON c.id = my_cp.conversation_id AND my_cp.user_id = $2 AND my_cp.left_at IS NULL
       JOIN conversation_participants cp ON c.id = cp.conversation_id AND cp.left_at IS NULL
       JOIN users u ON cp.user_id = u.id
+      LEFT JOIN user_presence up2 ON u.id = up2.user_id
       WHERE c.id = $1
       GROUP BY c.id
     `, [conversationId, userId]);
+
+    logger.debug({ conversationId, userId, rowCount: result.rows.length }, 'Repository: Query result');
+
+    if (result.rows.length === 0) {
+      // Let's also check if the conversation exists at all and if the user is a participant separately
+      const convExists = await pool.query('SELECT id FROM conversations WHERE id = $1', [conversationId]);
+      const isParticipant = await pool.query('SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL', [conversationId, userId]);
+
+      logger.debug({
+        conversationId,
+        userId,
+        conversationExists: convExists.rows.length > 0,
+        isParticipant: isParticipant.rows.length > 0
+      }, 'Repository: Detailed check');
+    }
 
     return result.rows[0];
   }
