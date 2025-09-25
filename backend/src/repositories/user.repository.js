@@ -135,8 +135,8 @@ class UserRepository {
       return result.rows.map(row => ({
         id: row.id,
         email: row.email,
-        name: row.display_name,
-        avatar: row.avatar_url
+        display_name: row.display_name,
+        avatar_url: row.avatar_url
       }));
     } catch (error) {
       logger.error({ error: error.message, currentUserId }, 'Error getting all users');
@@ -162,7 +162,13 @@ class UserRepository {
       const result = await pool.query(searchQuery, [searchTerm, currentUserId, limit]);
 
       logger.debug({ query, currentUserId, resultCount: result.rows.length }, 'User search completed');
-      return result.rows;
+
+      return result.rows.map(row => ({
+        id: row.id,
+        email: row.email,
+        display_name: row.display_name,
+        avatar_url: row.avatar_url
+      }));
     } catch (error) {
       logger.error({ err: error, query, currentUserId }, 'Failed to search users');
       throw error;

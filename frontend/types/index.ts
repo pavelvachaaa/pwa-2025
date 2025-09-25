@@ -77,8 +77,7 @@ export interface ChatContextType {
   startTyping: (conversationId: string) => void;
   stopTyping: (conversationId: string) => void;
   markAsRead: (conversationId: string) => void;
-  createDirectMessage: (userId: string) => string;
-  createGroupChat: (name: string, participants: string[], avatar?: string) => string;
+  createConversation: (userId: string) => string;
   addReaction: (messageId: string, emoji: string) => void;
   removeReaction: (messageId: string, emoji: string) => void;
   editMessage: (messageId: string, newContent: string) => void;
@@ -151,14 +150,13 @@ export interface Message {
   pinnedBy?: string;
 }
 
-export type ConversationType = "dm" | "group";
-
 export interface Conversation {
   id: string;
-  type: ConversationType;
-  name?: string;
-  participants: User[];
+  user_a_id: string;
+  user_b_id: string;
   avatar_url?: string;
+  participants: User[];
+  other_participant: User;
   last_message?: Message;
   unread_count: number;
   isTyping?: string[];

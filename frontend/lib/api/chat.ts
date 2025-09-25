@@ -10,10 +10,7 @@ interface MessagesResponse {
 }
 
 interface CreateConversationRequest {
-  targetUserId?: string;
-  name?: string;
-  participants?: string[];
-  avatarUrl?: string;
+  targetUserId: string;
 }
 
 interface SendMessageRequest {
@@ -44,9 +41,9 @@ export const chatApi = {
     }
   },
 
-  async createDirectConversation(targetUserId: string): Promise<ApiResponse<Conversation>> {
+  async createConversation(targetUserId: string): Promise<ApiResponse<Conversation>> {
     try {
-      const response = await api.post('/chat/conversations/direct', { targetUserId });
+      const response = await api.post('/chat/conversations', { targetUserId });
       return {
         success: true,
         data: response.data
@@ -55,21 +52,6 @@ export const chatApi = {
       return {
         success: false,
         error: error.response?.data?.error || error.message || 'Failed to create conversation'
-      };
-    }
-  },
-
-  async createGroupConversation(data: CreateConversationRequest): Promise<ApiResponse<Conversation>> {
-    try {
-      const response = await api.post('/chat/conversations/group', data);
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to create group conversation'
       };
     }
   },

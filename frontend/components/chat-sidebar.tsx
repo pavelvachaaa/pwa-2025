@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useEffect, useCallback, useDeferredValue } from "react"
-import { Search, LogOut } from "lucide-react"
+import { Search, LogOut, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth/context"
 import { useChat } from "@/lib/chat/context"
+import { NewChatModal } from "@/components/new-chat-modal"
 import { cn } from "@/lib/utils"
 
 interface ChatSidebarProps {
@@ -20,9 +21,10 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [presence, setPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
+  const [showNewChatModal, setShowNewChatModal] = useState(false)
 
   const { user, logout } = useAuth()
-  const { conversations, onUserPresenceUpdate, loading } = useChat()
+  const { conversations, createConversation, onUserPresenceUpdate, loading } = useChat()
 
   // Presence subscription
   const handlePresence = useCallback((userId: string, status: string, lastSeen?: Date) => {
@@ -32,15 +34,24 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
 
   const currentUserId = user?.id || ""
 
+  const handleStartChat = useCallback(async (targetUserId: string) => {
+    try {
+      const conversation = await createConversation(targetUserId)
+      if (conversation) {
+        onSelectConversation(conversation.id)
+      }
+    } catch (error) {
+      console.error('Failed to start chat:', error)
+    }
+  }, [createConversation, onSelectConversation])
+
   const filtered = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase()
     return conversations.filter((c) => {
-      const name = c.type === "group"
-        ? (c.name || "Unnamed Group")
-        : (c.participants?.find((p) => p.id !== currentUserId)?.display_name || "Unknown User")
+      const name = c.other_participant?.display_name || "Unknown User"
       return q ? name.toLowerCase().includes(q) : true
     })
-  }, [conversations, deferredQuery, currentUserId])
+  }, [conversations, deferredQuery])
 
   const formatLastMessageTime = (iso?: string) => {
     if (!iso) return "";
@@ -91,6 +102,16 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
             aria-label="Filter conversations"
           />
         </div>
+
+        {/* New Chat Button */}
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 bg-sidebar-accent border-sidebar-border hover:bg-sidebar-accent/80"
+          onClick={() => setShowNewChatModal(true)}
+        >
+          <Plus className="h-4 w-4" />
+          New Chat
+        </Button>
       </div>
 
       <Separator className="bg-sidebar-border" />
@@ -104,10 +125,9 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
         ) : (
           filtered.map((c) => {
             const isSelected = c.id === selectedConversationId
-            const isDM = c.type === "dm"
-            const other = isDM ? c.participants?.find((p) => p.id !== currentUserId) : null
-            const name = isDM ? (other?.display_name || "Unknown User") : (c.name || "Unnamed Group")
-            const avatar = isDM ? (other?.avatar_url || "/placeholder.svg") : (c.avatar_url || "/placeholder.svg")
+            const other = c.other_participant
+            const name = other?.display_name || "Unknown User"
+            const avatar = other?.avatar_url || "/placeholder.svg"
             const status = other ? (presence[other.id]?.status || other.status || "offline") : ""
 
             return (
@@ -126,17 +146,15 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
                       <AvatarImage src={avatar} />
                       <AvatarFallback>{name.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    {isDM && (
-                      <span
-                        className={cn(
-                          "absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-sidebar",
-                          status === "online" && "bg-green-500",
-                          status === "away" && "bg-yellow-500",
-                          status === "offline" && "bg-gray-500"
-                        )}
-                        aria-label={`Status: ${status}`}
-                      />
-                    )}
+                    <span
+                      className={cn(
+                        "absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-sidebar",
+                        status === "online" && "bg-green-500",
+                        status === "away" && "bg-yellow-500",
+                        status === "offline" && "bg-gray-500"
+                      )}
+                      aria-label={`Status: ${status}`}
+                    />
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -175,6 +193,13 @@ export function ChatSidebar({ selectedConversationId, onSelectConversation }: Ch
           })
         )}
       </div>
+
+      {/* New Chat Modal */}
+      <NewChatModal
+        open={showNewChatModal}
+        onOpenChange={setShowNewChatModal}
+        onStartChat={handleStartChat}
+      />
     </aside>
   )
 }

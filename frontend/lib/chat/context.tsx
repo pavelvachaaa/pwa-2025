@@ -16,7 +16,9 @@ interface ChatContextType {
 
   // Chat operations
   sendMessage: (conversationId: string, content: string) => Promise<void>
+  createConversation: (targetUserId: string) => Promise<Conversation | null>
   loadConversations: () => Promise<void>
+  loadMessages: (conversationId: string) => Promise<Message[]>
   joinConversation: (conversationId: string) => Promise<void>
   leaveConversation: (conversationId: string) => void
 
@@ -73,6 +75,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       messageType: 'text'
     })
   }, [wsConnected])
+
+  const createConversation = useCallback(async (targetUserId: string): Promise<Conversation | null> => {
+    try {
+      const response = await chatApi.createConversation(targetUserId)
+      if (response.success && response.data) {
+        // Reload conversations to include the new one
+        await loadConversations()
+        return response.data
+      }
+      return null
+    } catch (error) {
+      console.error('Failed to create conversation:', error)
+      return null
+    }
+  }, [loadConversations])
+
+  const loadMessages = useCallback(async (conversationId: string): Promise<Message[]> => {
+    try {
+      const response = await chatApi.getMessages(conversationId)
+      if (response.success && response.data) {
+        return response.data
+      }
+      return []
+    } catch (error) {
+      console.error('Failed to load messages:', error)
+      return []
+    }
+  }, [])
 
   const joinConversation = useCallback(async (conversationId: string) => {
     if (!wsConnected) {
@@ -234,7 +264,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Chat operations
         sendMessage,
+        createConversation,
         loadConversations,
+        loadMessages,
         joinConversation,
         leaveConversation,
 

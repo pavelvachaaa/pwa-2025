@@ -3,72 +3,30 @@ const logger = require('@utils/logger');
 
 class ChatRepository {
   // Conversations
-  async createConversation({ type, name, avatarUrl, createdBy, participants = [] }) {
-    const client = await pool.connect();
+  async createConversation({ userAId, userBId, createdBy, avatarUrl = null }) {
+    const result = await pool.query(
+      `INSERT INTO conversations (user_a_id, user_b_id, created_by, avatar_url)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4)
+       RETURNING *`,
+      [userAId, userBId, createdBy, avatarUrl]
+    );
 
-    try {
-      await client.query('BEGIN');
-
-      // Create conversation
-      const conversationResult = await client.query(
-        `INSERT INTO conversations (type, name, avatar_url, created_by)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`,
-        [type, name, avatarUrl, createdBy]
-      );
-
-      const conversation = conversationResult.rows[0];
-
-      // Add creator as admin participant
-      await client.query(
-        `INSERT INTO conversation_participants (conversation_id, user_id, is_admin)
-         VALUES ($1, $2, true)`,
-        [conversation.id, createdBy]
-      );
-
-      // Add other participants
-      for (const participantId of participants) {
-        if (participantId !== createdBy) {
-          await client.query(
-            `INSERT INTO conversation_participants (conversation_id, user_id)
-             VALUES ($1, $2)`,
-            [conversation.id, participantId]
-          );
-        }
-      }
-
-      await client.query('COMMIT');
-      return conversation;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      logger.error({ error: error.message }, 'Error creating conversation');
-      throw error;
-    } finally {
-      client.release();
-    }
+    return result.rows[0];
   }
 
   async getConversationsForUser(userId) {
     const result = await pool.query(`
       SELECT
         c.*,
-        COALESCE(
-          json_agg(
-            CASE WHEN cp.user_id IS NOT NULL THEN
-              json_build_object(
-                'id', u.id,
-                'email', u.email,
-                'display_name', u.display_name,
-                'avatar_url', u.avatar_url,
-                'is_admin', cp.is_admin,
-                'joined_at', cp.joined_at,
-                'status', COALESCE(up.status, 'offline'),
-                'last_seen', up.last_seen
-              )
-            END
-          ) FILTER (WHERE cp.user_id IS NOT NULL),
-          '[]'::json
-        ) as participants,
+        -- Get the other participant info (not the current user)
+        json_build_object(
+          'id', other_user.id,
+          'email', other_user.email,
+          'display_name', other_user.display_name,
+          'avatar_url', other_user.avatar_url,
+          'status', COALESCE(up.status, 'offline'),
+          'last_seen', up.last_seen
+        ) as other_participant,
         (
           SELECT json_build_object(
             'id', m.id,
@@ -87,17 +45,20 @@ class ChatRepository {
         (
           SELECT COUNT(*)::int
           FROM messages m
-          LEFT JOIN message_read_status mrs ON m.id = mrs.message_id AND mrs.user_id = $1
+          LEFT JOIN message_read_status mrs ON m.id = mrs.message_id AND mrs.user_id = $1::uuid
           WHERE m.conversation_id = c.id
-          AND m.sender_id != $1
+          AND m.sender_id != $1::uuid
           AND mrs.id IS NULL
         ) as unread_count
       FROM conversations c
-      JOIN conversation_participants my_cp ON c.id = my_cp.conversation_id AND my_cp.user_id = $1 AND my_cp.left_at IS NULL
-      LEFT JOIN conversation_participants cp ON c.id = cp.conversation_id AND cp.left_at IS NULL
-      LEFT JOIN users u ON cp.user_id = u.id
-      LEFT JOIN user_presence up ON u.id = up.user_id
-      GROUP BY c.id, c.type, c.name, c.avatar_url, c.created_by, c.created_at, c.updated_at
+      JOIN users other_user ON (
+        CASE
+          WHEN c.user_a_id = $1::uuid THEN c.user_b_id
+          ELSE c.user_a_id
+        END = other_user.id
+      )
+      LEFT JOIN user_presence up ON other_user.id = up.user_id
+      WHERE c.user_a_id = $1::uuid OR c.user_b_id = $1::uuid
       ORDER BY c.updated_at DESC
     `, [userId]);
 
@@ -110,56 +71,61 @@ class ChatRepository {
     const result = await pool.query(`
       SELECT
         c.*,
-        json_agg(
+        -- Get both participants info
+        json_build_array(
           json_build_object(
-            'id', u.id,
-            'email', u.email,
-            'display_name', u.display_name,
-            'avatar_url', u.avatar_url,
-            'is_admin', cp.is_admin,
-            'joined_at', cp.joined_at,
-            'status', COALESCE(up2.status, 'offline'),
-            'last_seen', up2.last_seen
+            'id', user_a.id,
+            'email', user_a.email,
+            'display_name', user_a.display_name,
+            'avatar_url', user_a.avatar_url,
+            'status', COALESCE(up_a.status, 'offline'),
+            'last_seen', up_a.last_seen
+          ),
+          json_build_object(
+            'id', user_b.id,
+            'email', user_b.email,
+            'display_name', user_b.display_name,
+            'avatar_url', user_b.avatar_url,
+            'status', COALESCE(up_b.status, 'offline'),
+            'last_seen', up_b.last_seen
           )
-        ) as participants
+        ) as participants,
+        -- Get the other participant info (not the current user)
+        json_build_object(
+          'id', other_user.id,
+          'email', other_user.email,
+          'display_name', other_user.display_name,
+          'avatar_url', other_user.avatar_url,
+          'status', COALESCE(up_other.status, 'offline'),
+          'last_seen', up_other.last_seen
+        ) as other_participant
       FROM conversations c
-      JOIN conversation_participants my_cp ON c.id = my_cp.conversation_id AND my_cp.user_id = $2 AND my_cp.left_at IS NULL
-      JOIN conversation_participants cp ON c.id = cp.conversation_id AND cp.left_at IS NULL
-      JOIN users u ON cp.user_id = u.id
-      LEFT JOIN user_presence up2 ON u.id = up2.user_id
-      WHERE c.id = $1
-      GROUP BY c.id
+      JOIN users user_a ON c.user_a_id = user_a.id
+      JOIN users user_b ON c.user_b_id = user_b.id
+      LEFT JOIN user_presence up_a ON user_a.id = up_a.user_id
+      LEFT JOIN user_presence up_b ON user_b.id = up_b.user_id
+      JOIN users other_user ON (
+        CASE
+          WHEN c.user_a_id = $2::uuid THEN c.user_b_id
+          ELSE c.user_a_id
+        END = other_user.id
+      )
+      LEFT JOIN user_presence up_other ON other_user.id = up_other.user_id
+      WHERE c.id = $1::uuid
+      AND (c.user_a_id = $2::uuid OR c.user_b_id = $2::uuid)
     `, [conversationId, userId]);
 
     logger.debug({ conversationId, userId, rowCount: result.rows.length }, 'Repository: Query result');
 
-    if (result.rows.length === 0) {
-      // Let's also check if the conversation exists at all and if the user is a participant separately
-      const convExists = await pool.query('SELECT id FROM conversations WHERE id = $1', [conversationId]);
-      const isParticipant = await pool.query('SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL', [conversationId, userId]);
-
-      logger.debug({
-        conversationId,
-        userId,
-        conversationExists: convExists.rows.length > 0,
-        isParticipant: isParticipant.rows.length > 0
-      }, 'Repository: Detailed check');
-    }
-
     return result.rows[0];
   }
 
-  async findDirectConversation(userId1, userId2) {
+  async findConversationByParticipants(userId1, userId2) {
+    // Use the canonical ordering (conv_a, conv_b) to find conversation
     const result = await pool.query(`
-      SELECT c.id
+      SELECT c.*
       FROM conversations c
-      JOIN conversation_participants cp1 ON c.id = cp1.conversation_id AND cp1.user_id = $1 AND cp1.left_at IS NULL
-      JOIN conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.user_id = $2 AND cp2.left_at IS NULL
-      WHERE c.type = 'dm'
-      AND (
-        SELECT COUNT(*) FROM conversation_participants cp
-        WHERE cp.conversation_id = c.id AND cp.left_at IS NULL
-      ) = 2
+      WHERE c.conv_a = LEAST($1::uuid, $2::uuid) AND c.conv_b = GREATEST($1::uuid, $2::uuid)
     `, [userId1, userId2]);
 
     return result.rows[0];
@@ -169,7 +135,7 @@ class ChatRepository {
   async createMessage({ conversationId, senderId, content, messageType = 'text', replyTo = null }) {
     const result = await pool.query(
       `INSERT INTO messages (conversation_id, sender_id, content, message_type, reply_to)
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid)
        RETURNING *`,
       [conversationId, senderId, content, messageType, replyTo]
     );
@@ -178,9 +144,9 @@ class ChatRepository {
   }
 
   async getMessagesForConversation(conversationId, userId, limit = 50, offset = 0) {
-    // First verify user is participant
+    // First verify user is participant (check if user is either user_a or user_b)
     const participantCheck = await pool.query(
-      'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL',
+      'SELECT 1 FROM conversations WHERE id = $1::uuid AND (user_a_id = $2::uuid OR user_b_id = $2::uuid)',
       [conversationId, userId]
     );
 

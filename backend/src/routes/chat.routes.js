@@ -8,10 +8,9 @@ const router = express.Router();
 router.use(authMiddleware);
 router.use(requireActiveUser);
 
-// Conversations
+// Conversations (DM only)
 router.get('/conversations', chatController.getConversations);
-router.post('/conversations/direct', chatController.createDirectConversation);
-router.post('/conversations/group', chatController.createGroupConversation);
+router.post('/conversations', chatController.createConversation);
 
 // Messages
 router.get('/conversations/:conversationId/messages', chatController.getMessages);

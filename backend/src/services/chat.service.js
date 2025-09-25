@@ -3,58 +3,33 @@ const userRepository = require('@repositories/user.repository');
 const logger = require('@utils/logger');
 
 class ChatService {
-  async createDirectConversation(currentUserId, targetUserId) {
+  async createConversation(currentUserId, targetUserId) {
     try {
-      // Check if conversation already exists
-      const existing = await chatRepository.findDirectConversation(currentUserId, targetUserId);
+      if (currentUserId === targetUserId) {
+        throw new Error('Cannot create conversation with yourself');
+      }
+
+      // Check if conversation already exists (using unordered pair)
+      const existing = await chatRepository.findConversationByParticipants(currentUserId, targetUserId);
       if (existing) {
         return { conversation: await chatRepository.getConversationById(existing.id, currentUserId) };
       }
 
-      // Verify both users exist
+      // Verify target user exists
       const targetUser = await userRepository.findById(targetUserId);
       if (!targetUser) {
         throw new Error('Target user not found');
       }
 
       const conversation = await chatRepository.createConversation({
-        type: 'dm',
-        createdBy: currentUserId,
-        participants: [targetUserId]
+        userAId: currentUserId,
+        userBId: targetUserId,
+        createdBy: currentUserId
       });
 
       return { conversation: await chatRepository.getConversationById(conversation.id, currentUserId) };
     } catch (error) {
-      logger.error({ error: error.message, currentUserId, targetUserId }, 'Error creating direct conversation');
-      throw error;
-    }
-  }
-
-  async createGroupConversation(currentUserId, { name, participants = [], avatarUrl }) {
-    try {
-      if (!name?.trim()) {
-        throw new Error('Group name is required');
-      }
-
-      // Verify all participants exist
-      for (const participantId of participants) {
-        const user = await userRepository.findById(participantId);
-        if (!user) {
-          throw new Error(`User ${participantId} not found`);
-        }
-      }
-
-      const conversation = await chatRepository.createConversation({
-        type: 'group',
-        name: name.trim(),
-        avatarUrl,
-        createdBy: currentUserId,
-        participants
-      });
-
-      return { conversation: await chatRepository.getConversationById(conversation.id, currentUserId) };
-    } catch (error) {
-      logger.error({ error: error.message, currentUserId, name, participants }, 'Error creating group conversation');
+      logger.error({ error: error.message, currentUserId, targetUserId }, 'Error creating conversation');
       throw error;
     }
   }

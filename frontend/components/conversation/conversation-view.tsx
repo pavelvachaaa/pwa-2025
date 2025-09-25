@@ -32,6 +32,7 @@ export function ConversationView({
     const {
         wsConnected,
         sendMessage,
+        loadMessages,
         onNewMessage,
         onMessageEdited,
         onMessageDeleted,
@@ -42,13 +43,27 @@ export function ConversationView({
 
     const [presence, setPresence] = useState<Record<string, { status: string; lastSeen?: Date }>>({})
 
-    const initialMessages = (conversation as any).messages as Message[] | undefined
-    const [items, setItems] = useState<Message[]>(initialMessages ?? [])
+    const [items, setItems] = useState<Message[]>([])
+    const [messagesLoading, setMessagesLoading] = useState(true)
     const endRef = useRef<HTMLDivElement>(null)
 
+    // Load messages when conversation changes
     useEffect(() => {
-        setItems(initialMessages ?? [])
-    }, [conversation.id])
+        const loadConversationMessages = async () => {
+            setMessagesLoading(true)
+            try {
+                const messages = await loadMessages(conversation.id)
+                setItems(messages)
+            } catch (error) {
+                console.error('Failed to load messages:', error)
+                setItems([])
+            } finally {
+                setMessagesLoading(false)
+            }
+        }
+
+        loadConversationMessages()
+    }, [conversation.id, loadMessages])
 
     useEffect(() => {
         joinConversation(conversation.id)
@@ -84,15 +99,10 @@ export function ConversationView({
         scrollToBottom()
     }, [grouped.length])
 
-    const isDM = conversation.type === "dm" || (conversation.participants?.length === 2)
-    const other = isDM
-        ? (conversation.participants as any[])?.find((p) => p.id !== (user?.id || currentUserId))
-        : null
+    const other = conversation.other_participant
 
-    // Title: prefer display_name > name > username
-    const title = isDM
-        ? (other?.display_name ?? "Direct message")
-        : (conversation.name ?? "Group")
+    // Title: always show the other participant's name for DM
+    const title = other?.display_name ?? "Direct message"
 
     // Compute presence strictly from the **second participant** (other)
     const otherStatus = other
@@ -104,7 +114,6 @@ export function ConversationView({
         : undefined
 
     const presenceText = (() => {
-        if (!isDM) return `${conversation.participants?.length || 0} members`
         if (otherStatus === "online") return "Online"
         if (otherStatus === "away") return "Away"
         if (otherStatus === "offline" && otherLastSeen) {
@@ -140,12 +149,27 @@ export function ConversationView({
 
             <ScrollArea className="flex-1 p-3">
                 <div className="space-y-2">
-                    {grouped.map((m) => {
-                        const senderId = (m as any).sender_id ?? (m as any).senderId
-                        return (
-                            <MessageBubble key={m.id} message={m} isOwn={senderId === (user?.id || currentUserId)} />
-                        )
-                    })}
+                    {messagesLoading ? (
+                        <div className="flex items-center justify-center p-8 text-muted-foreground">
+                            <div className="text-center">
+                                <div className="mb-2">Loading messages...</div>
+                            </div>
+                        </div>
+                    ) : grouped.length === 0 ? (
+                        <div className="flex items-center justify-center p-8 text-muted-foreground">
+                            <div className="text-center">
+                                <div className="mb-2">No messages yet</div>
+                                <div className="text-sm">Start a conversation!</div>
+                            </div>
+                        </div>
+                    ) : (
+                        grouped.map((m) => {
+                            const senderId = (m as any).sender_id ?? (m as any).senderId
+                            return (
+                                <MessageBubble key={m.id} message={m} isOwn={senderId === (user?.id || currentUserId)} />
+                            )
+                        })
+                    )}
                     <div ref={endRef} />
                 </div>
             </ScrollArea>

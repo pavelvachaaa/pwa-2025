@@ -3,7 +3,7 @@ import { api, type ApiResponse } from './api';
 
 const USER_API_PREFIX = "/users";
 
-export const usersApi = {
+export const userApi = {
     async getAllUsers(limit = 20): Promise<ApiResponse<User[]>> {
         try {
             const response = await api.get(USER_API_PREFIX, {

@@ -47,8 +47,8 @@ class ChatController {
     }
   }
 
-  // Create direct conversation
-  async createDirectConversation(req, res) {
+  // Create conversation (DM only)
+  async createConversation(req, res) {
     try {
       const userId = req.user.id;
       const { targetUserId } = req.body;
@@ -60,46 +60,14 @@ class ChatController {
         });
       }
 
-      const result = await chatService.createDirectConversation(userId, targetUserId);
+      const result = await chatService.createConversation(userId, targetUserId);
 
       res.json({
         success: true,
         data: result.conversation
       });
     } catch (error) {
-      logger.error({ error: error.message, userId: req.user?.userId, targetUserId: req.body?.targetUserId }, 'Error creating direct conversation');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  }
-
-  // Create group conversation
-  async createGroupConversation(req, res) {
-    try {
-      const userId = req.user.id;
-      const { name, participants, avatarUrl } = req.body;
-
-      if (!name || !name.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Group name is required'
-        });
-      }
-
-      const result = await chatService.createGroupConversation(userId, {
-        name,
-        participants: participants || [],
-        avatarUrl
-      });
-
-      res.json({
-        success: true,
-        data: result.conversation
-      });
-    } catch (error) {
-      logger.error({ error: error.message, userId: req.user?.userId, name: req.body?.name }, 'Error creating group conversation');
+      logger.error({ error: error.message, userId: req.user?.userId, targetUserId: req.body?.targetUserId }, 'Error creating conversation');
       res.status(500).json({
         success: false,
         error: error.message
