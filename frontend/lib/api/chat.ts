@@ -1,11 +1,5 @@
-import { api } from './api';
+import { api, ApiResponse } from './api';
 import type { Conversation, Message, User } from '@/types';
-
-interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
 
 interface ConversationsResponse {
   conversations: Conversation[];
@@ -160,7 +154,7 @@ export const chatApi = {
   async removeReaction(messageId: string, emoji: string): Promise<ApiResponse<void>> {
     try {
       await api.delete(`/chat/messages/${messageId}/reactions`, {
-        data: JSON.stringify({ emoji }),
+        body: JSON.stringify({ emoji }),
         headers: { 'Content-Type': 'application/json' }
       });
       return {
@@ -219,56 +213,4 @@ export const chatApi = {
     }
   },
 
-  // User search
-  async getAllUsers(limit = 20): Promise<ApiResponse<User[]>> {
-    try {
-      const response = await api.get('/chat/users', {
-        params: { limit: limit.toString() }
-      });
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to get users'
-      };
-    }
-  },
-
-  async searchUsers(query: string, limit = 20): Promise<ApiResponse<User[]>> {
-    try {
-      const response = await api.get('/chat/users/search', {
-        params: { q: query, limit: limit.toString() }
-      });
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to search users'
-      };
-    }
-  },
-
-  // Presence
-  async getUsersPresence(userIds: string[]): Promise<ApiResponse<any[]>> {
-    try {
-      const response = await api.get('/chat/users/presence', {
-        params: { userIds: userIds.join(',') }
-      });
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to get presence'
-      };
-    }
-  }
 };

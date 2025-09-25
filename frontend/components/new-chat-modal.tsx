@@ -6,8 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/lib/auth/context"
-import { chatApi } from "@/lib/api/chat"
 import type { User } from "@/types"
+import { usersApi } from "@/lib/api/user"
 
 interface NewChatModalProps {
   open: boolean
@@ -34,7 +34,7 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
   const loadAllUsers = async () => {
     setLoading(true)
     try {
-      const response = await chatApi.getAllUsers()
+      const response = await usersApi.getAllUsers()
       if (response.success && response.data) {
         setUsers(response.data)
       } else {
@@ -51,7 +51,7 @@ export function NewChatModal({ open, onOpenChange, onStartChat }: NewChatModalPr
   const searchUsers = async (query: string) => {
     setLoading(true)
     try {
-      const response = await chatApi.searchUsers(query)
+      const response = await usersApi.searchUsers(query)
       if (response.success && response.data) {
         // Filter out current user
         const filteredUsers = response.data.filter((u) => u.id !== user?.id)

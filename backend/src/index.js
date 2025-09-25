@@ -7,6 +7,7 @@ const cors = require('cors')
 const cookieParser = require('cookie-parser');
 
 const authRoutes = require('@routes/auth.routes');
+const userRoutes = require('@routes/user.routes');
 const chatRoutes = require('@routes/chat.routes');
 const websocketHandler = require('@/socket/websocket.handler');
 
@@ -44,6 +45,7 @@ app.use((req, res, next) => {
 // Routes
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/chat`, chatRoutes);
+app.use(`${API_PREFIX}/users`, userRoutes);
 
 app.get('/', (req, res) => {
   logger.info({ message: 'Handling root request' });

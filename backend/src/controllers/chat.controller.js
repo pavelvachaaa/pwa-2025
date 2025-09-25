@@ -5,7 +5,7 @@ class ChatController {
   // Get user's conversations
   async getConversations(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const result = await chatService.getUserConversations(userId);
 
       res.json({
@@ -24,7 +24,7 @@ class ChatController {
   // Get messages for a conversation
   async getMessages(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { conversationId } = req.params;
       const { limit = 50, offset = 0 } = req.query;
 
@@ -50,7 +50,7 @@ class ChatController {
   // Create direct conversation
   async createDirectConversation(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { targetUserId } = req.body;
 
       if (!targetUserId) {
@@ -78,7 +78,7 @@ class ChatController {
   // Create group conversation
   async createGroupConversation(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { name, participants, avatarUrl } = req.body;
 
       if (!name || !name.trim()) {
@@ -110,7 +110,7 @@ class ChatController {
   // Send message (HTTP endpoint - WebSocket is preferred for real-time)
   async sendMessage(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { conversationId, content, messageType, replyTo } = req.body;
 
       if (!conversationId || !content || !content.trim()) {
@@ -143,7 +143,7 @@ class ChatController {
   // Edit message
   async editMessage(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { messageId } = req.params;
       const { content } = req.body;
 
@@ -172,7 +172,7 @@ class ChatController {
   // Delete message
   async deleteMessage(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { messageId } = req.params;
 
       await chatService.deleteMessage(messageId, userId);
@@ -193,7 +193,7 @@ class ChatController {
   // Add reaction to message
   async addReaction(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { messageId } = req.params;
       const { emoji } = req.body;
 
@@ -222,7 +222,7 @@ class ChatController {
   // Remove reaction from message
   async removeReaction(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { messageId } = req.params;
       const { emoji } = req.body;
 
@@ -251,7 +251,7 @@ class ChatController {
   // Mark conversation as read
   async markAsRead(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { conversationId } = req.params;
 
       await chatService.markConversationAsRead(conversationId, userId);
@@ -269,59 +269,12 @@ class ChatController {
     }
   }
 
-  // Get all users
-  async getAllUsers(req, res) {
-    try {
-      const userId = req.user.userId;
-      const { limit = 20 } = req.query;
 
-      const result = await chatService.getAllUsers(userId, parseInt(limit));
-
-      res.json({
-        success: true,
-        data: result.users
-      });
-    } catch (error) {
-      logger.error({ error: error.message, userId: req.user?.userId }, 'Error getting all users');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  }
-
-  // Search users
-  async searchUsers(req, res) {
-    try {
-      const userId = req.user.userId;
-      const { q: query, limit = 20 } = req.query;
-
-      if (!query || !query.trim()) {
-        return res.json({
-          success: true,
-          data: []
-        });
-      }
-
-      const result = await chatService.searchUsers(query, userId, parseInt(limit));
-
-      res.json({
-        success: true,
-        data: result.users
-      });
-    } catch (error) {
-      logger.error({ error: error.message, query: req.query.q, userId: req.user?.userId }, 'Error searching users');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  }
 
   // Get/save drafts
   async getDraft(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { conversationId } = req.params;
 
       const result = await chatService.getDraft(conversationId, userId);
@@ -341,7 +294,7 @@ class ChatController {
 
   async saveDraft(req, res) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { conversationId } = req.params;
       const { content } = req.body;
 
@@ -360,33 +313,6 @@ class ChatController {
     }
   }
 
-  // Get user presence
-  async getUsersPresence(req, res) {
-    try {
-      const { userIds } = req.query;
-
-      if (!userIds) {
-        return res.status(400).json({
-          success: false,
-          error: 'User IDs are required'
-        });
-      }
-
-      const userIdArray = Array.isArray(userIds) ? userIds : userIds.split(',');
-      const result = await chatService.getUsersPresence(userIdArray);
-
-      res.json({
-        success: true,
-        data: result.presences
-      });
-    } catch (error) {
-      logger.error({ error: error.message, userIds: req.query.userIds }, 'Error getting users presence');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  }
 }
 
 module.exports = new ChatController();

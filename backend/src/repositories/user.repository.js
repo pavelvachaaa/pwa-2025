@@ -120,6 +120,7 @@ class UserRepository {
 
   async getAllUsers(currentUserId, limit = 20) {
     try {
+      logger.info({currentUserId, limit}, "Zde");
       const query = `
         SELECT id, email, display_name, avatar_url
         FROM users
