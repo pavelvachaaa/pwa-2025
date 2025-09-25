@@ -2,6 +2,7 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const chatService = require('@services/chat.service');
 const logger = require('@utils/logger');
+const userService = require('../services/user.service');
 
 class WebSocketHandler {
   constructor() {
@@ -28,9 +29,11 @@ class WebSocketHandler {
           throw new Error('Authentication token required');
         }
 
-        // Verify JWT token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.userId = decoded.userId;
+        // TODO: Teď nemužu z frontendu accessnout secure httpCookie (domyslet) 
+        // /api/v1/auth/getToken
+        // const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // socket.userId = decoded.userId;
+        socket.userId = "2ee76d5b-6d3d-4f08-8f93-0319b944c040"
 
         logger.info({ userId: socket.userId, socketId: socket.id }, 'WebSocket authentication successful');
         next();
@@ -52,17 +55,14 @@ class WebSocketHandler {
 
     logger.info({ userId, socketId: socket.id }, 'User connected to WebSocket');
 
-    // Track connected users
     if (!this.connectedUsers.has(userId)) {
       this.connectedUsers.set(userId, new Set());
     }
     this.connectedUsers.get(userId).add(socket.id);
     this.userSockets.set(socket.id, userId);
 
-    // Update user presence to online
     this.updateUserPresence(userId, 'online');
 
-    // Set up event handlers
     this.setupEventHandlers(socket);
 
     socket.on('disconnect', () => {
@@ -291,19 +291,17 @@ class WebSocketHandler {
 
     logger.info({ userId, socketId: socket.id }, 'User disconnected from WebSocket');
 
-    // Clean up tracking
     if (this.connectedUsers.has(userId)) {
       this.connectedUsers.get(userId).delete(socket.id);
       if (this.connectedUsers.get(userId).size === 0) {
         this.connectedUsers.delete(userId);
-        // User completely disconnected, update presence
+
         this.updateUserPresence(userId, 'offline');
       }
     }
 
     this.userSockets.delete(socket.id);
 
-    // Clean up conversation room tracking
     for (const [conversationId, userSet] of this.conversationRooms.entries()) {
       userSet.delete(userId);
       if (userSet.size === 0) {
@@ -314,7 +312,7 @@ class WebSocketHandler {
 
   async updateUserPresence(userId, status) {
     try {
-      await chatService.updateUserPresence(userId, status);
+      await userService.updateUserPresence(userId, status);
 
       // Broadcast presence update to all connected users
       this.io.emit('presence:user_updated', {

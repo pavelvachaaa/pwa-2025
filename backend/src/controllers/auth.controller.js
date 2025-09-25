@@ -73,6 +73,45 @@ class AuthController {
     }
   }
 
+  async getToken(req, res, next) {
+    const token = req.cookies?.accessToken;
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token required'
+      });
+    }
+
+    try {
+      const decoded = verifyToken(token);
+      return res.status(200).json({
+        success: true,
+        data: token
+      });
+    } catch (e) {
+
+      logger.warn({
+        err: error,
+        token: token.substring(0, 20) + '...'
+      }, 'JWT verification failed');
+
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          error: 'Access token expired',
+          code: 'TOKEN_EXPIRED'
+        });
+      }
+
+      next(error);
+
+
+    }
+
+  }
+
+
   async login(req, res, next) {
     try {
       const result = await authService.login(req.body, req);
@@ -281,5 +320,6 @@ module.exports = {
   refresh: [validate(schemas.refreshToken), authController.refresh.bind(authController)],
   logout: authController.logout.bind(authController),
   logoutAll: authController.logoutAll.bind(authController),
-  me: authController.me.bind(authController)
+  me: authController.me.bind(authController),
+  getToken: authController.getToken.bind(authController)
 };

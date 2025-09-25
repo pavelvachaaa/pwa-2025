@@ -32,8 +32,7 @@ export function ChatSidebar({
   const [searchQuery, setSearchQuery] = useState("")
   const [showNewChatModal, setShowNewChatModal] = useState(false)
   const [showNewGroupModal, setShowNewGroupModal] = useState(false)
-  const [showFindFriendsModal, setShowFindFriendsModal] = useState(false)
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false) // Added global search state
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false)
 
   const { user, logout } = useAuth()
   const router = useRouter()
@@ -141,7 +140,7 @@ export function ChatSidebar({
           <Users className="h-4 w-4" />
           New Group
         </Button>
-       
+
       </div>
 
       <Separator className="bg-sidebar-border" />
@@ -150,7 +149,11 @@ export function ChatSidebar({
       <div className="flex-1 overflow-y-auto">
         <div className="p-2">
           {filteredConversations.map((conversation) => {
-            const name = getConversationName(conversation, currentUserId)
+            // TODO: Získání správného jména pro skupiny
+            // const name = getConversationName(conversation, currentUserId)
+            // const avatar = getConversationAvatar(conversation, currentUserId)
+
+            const name = (conversation.participants[1] as any).display_name;
             const avatar = getConversationAvatar(conversation, currentUserId)
             const isSelected = conversation.id === selectedConversationId
 

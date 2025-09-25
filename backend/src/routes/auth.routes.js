@@ -25,4 +25,6 @@ router.post('/logout-all', authMiddleware, authController.logoutAll);
 
 router.get('/me', authMiddleware, requireActiveUser, authController.me);
 
+router.get('/getToken', authMiddleware, requireActiveUser, authController.getToken);
+
 module.exports = router;

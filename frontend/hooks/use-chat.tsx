@@ -79,18 +79,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       wsClient.connect(user.id).catch(console.error)
       loadConversations()
     } else {
-      wsClient.disconnect()
+      // wsClient.disconnect()
       setConversations([])
       setMessages({})
       setLoading(false)
     }
 
-    return () => {
-      wsClient.disconnect()
-    }
+   
   }, [isAuthenticated, user, loadConversations])
 
-  // Set up WebSocket event listeners
   useEffect(() => {
     const handleConnected = () => {
       setIsConnected(true)

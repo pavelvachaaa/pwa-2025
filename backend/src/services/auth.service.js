@@ -303,6 +303,7 @@ class AuthService {
     }
   }
 
+
   async _createTokens(user, context) {
     const refreshToken = generateSecureToken();
     const refreshTokenHash = hashToken(refreshToken);

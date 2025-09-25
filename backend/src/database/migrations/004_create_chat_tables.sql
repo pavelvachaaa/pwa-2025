@@ -1,7 +1,3 @@
--- Chat system database schema
--- This migration creates tables for conversations, messages, and related features
-
--- Conversations table
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     type VARCHAR(10) NOT NULL CHECK (type IN ('dm', 'group')),
@@ -12,7 +8,6 @@ CREATE TABLE conversations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- Conversation participants (many-to-many between users and conversations)
 CREATE TABLE conversation_participants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -23,7 +18,6 @@ CREATE TABLE conversation_participants (
     UNIQUE(conversation_id, user_id)
 );
 
--- Messages table
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -40,7 +34,6 @@ CREATE TABLE messages (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- Message reactions
 CREATE TABLE message_reactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -50,7 +43,6 @@ CREATE TABLE message_reactions (
     UNIQUE(message_id, user_id, emoji)
 );
 
--- Message read status
 CREATE TABLE message_read_status (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -59,7 +51,6 @@ CREATE TABLE message_read_status (
     UNIQUE(message_id, user_id)
 );
 
--- User presence/status
 CREATE TABLE user_presence (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     status VARCHAR(20) DEFAULT 'offline' CHECK (status IN ('online', 'away', 'offline')),
@@ -67,7 +58,6 @@ CREATE TABLE user_presence (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- Typing indicators (temporary data, could also be handled in-memory)
 CREATE TABLE typing_indicators (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -76,7 +66,6 @@ CREATE TABLE typing_indicators (
     UNIQUE(conversation_id, user_id)
 );
 
--- Draft messages (auto-save as users type)
 CREATE TABLE message_drafts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -87,7 +76,6 @@ CREATE TABLE message_drafts (
     UNIQUE(conversation_id, user_id)
 );
 
--- File attachments
 CREATE TABLE message_attachments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -100,7 +88,6 @@ CREATE TABLE message_attachments (
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- Indexes for performance
 CREATE INDEX idx_conversations_type ON conversations(type);
 CREATE INDEX idx_conversations_updated_at ON conversations(updated_at DESC);
 CREATE INDEX idx_conversation_participants_user_id ON conversation_participants(user_id);
@@ -115,7 +102,6 @@ CREATE INDEX idx_user_presence_status ON user_presence(status);
 CREATE INDEX idx_typing_indicators_conversation_id ON typing_indicators(conversation_id);
 CREATE INDEX idx_message_drafts_user_conversation ON message_drafts(user_id, conversation_id);
 
--- Triggers to update timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -144,7 +130,7 @@ CREATE TRIGGER update_message_drafts_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Function to automatically update conversation updated_at when messages are added
+-- conversation updated_at when messages are added
 CREATE OR REPLACE FUNCTION update_conversation_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN

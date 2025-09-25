@@ -39,10 +39,7 @@ async function executeMigration(filename, sql) {
   try {
     await client.query('BEGIN');
 
-    // Execute the migration SQL
     await client.query(sql);
-
-    // Record the migration as executed
     await client.query('INSERT INTO migrations (filename) VALUES ($1)', [filename]);
 
     await client.query('COMMIT');
@@ -92,7 +89,6 @@ async function runMigrations() {
   }
 }
 
-// Run migrations if this file is executed directly
 if (require.main === module) {
   runMigrations()
     .then(() => {

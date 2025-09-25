@@ -34,11 +34,11 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use((req, res, next) => {
-  logger.debug({
-    body: req.body,
-    headers: req.headers,
-    contentType: req.get('Content-Type')
-  }, 'Request body debug');
+  // logger.debug({
+  //   body: req.body,
+  //   headers: req.headers,
+  //   contentType: req.get('Content-Type')
+  // }, 'Request body debug');
   next();
 });
 
