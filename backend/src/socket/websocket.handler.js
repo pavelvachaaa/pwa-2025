@@ -188,11 +188,10 @@ class WebSocketHandler {
       try {
         const { messageId } = data;
 
+        const message = await chatService.getMessageById(messageId, userId);
         await chatService.deleteMessage(messageId, userId);
 
-        // Broadcast deletion (we'll need to track conversation ID)
-        // For now, we'll emit to all connected users - this could be optimized
-        socket.broadcast.emit('message:deleted', { messageId });
+        this.io.to(message?.conversation_id).emit('message:deleted', { messageId });
 
         logger.debug({ userId, messageId }, 'Message deleted and broadcast');
 
@@ -209,10 +208,8 @@ class WebSocketHandler {
 
         await chatService.addReaction(messageId, userId, emoji);
 
-        // Broadcast reaction (we'll need to track conversation ID)
-        socket.broadcast.emit('message:reaction_added', { messageId, userId, emoji });
-
-        logger.debug({ userId, messageId, emoji }, 'Reaction added and broadcast');
+        const message = await chatService.getMessageById(messageId, userId);
+        this.io.to(message?.conversation_id).emit('message:reaction_added', { messageId, userId, emoji });
 
       } catch (error) {
         logger.error({ error: error.message, userId, data }, 'Error adding reaction');
@@ -227,8 +224,10 @@ class WebSocketHandler {
 
         await chatService.removeReaction(messageId, userId, emoji);
 
-        // Broadcast reaction removal
-        socket.broadcast.emit('message:reaction_removed', { messageId, userId, emoji });
+        const message = await chatService.getMessageById(messageId, userId);
+        if (message && message.conversation_id) {
+          this.io.to(message.conversation_id).emit('message:reaction_removed', { messageId, userId, emoji });
+        }
 
         logger.debug({ userId, messageId, emoji }, 'Reaction removed and broadcast');
 

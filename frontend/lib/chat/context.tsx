@@ -31,11 +31,15 @@ interface ChatContextType {
   // Message operations
   editMessage: (messageId: string, content: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
+  addReaction: (messageId: string, emoji: string) => Promise<void>
+  removeReaction: (messageId: string, emoji: string) => Promise<void>
 
   // Real-time updates
   onNewMessage: (callback: (message: Message, conversationId: string) => void) => () => void
   onMessageEdited: (callback: (message: Message, conversationId: string) => void) => () => void
   onMessageDeleted: (callback: (messageId: string) => void) => () => void
+  onReactionAdded: (callback: (messageId: string, emoji: string, userId: string) => void) => () => void
+  onReactionRemoved: (callback: (messageId: string, emoji: string, userId: string) => void) => () => void
   onUserPresenceUpdate: (callback: (userId: string, status: string, lastSeen?: Date) => void) => () => void
 }
 
@@ -148,6 +152,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, [wsConnected])
 
+  const addReaction = useCallback(async (messageId: string, emoji: string) => {
+    if (!wsConnected) {
+      throw new Error('WebSocket not connected')
+    }
+
+    wsClient.chat.addReaction({
+      messageId,
+      emoji
+    })
+  }, [wsConnected])
+
+  const removeReaction = useCallback(async (messageId: string, emoji: string) => {
+    if (!wsConnected) {
+      throw new Error('WebSocket not connected')
+    }
+
+    wsClient.chat.removeReaction({
+      messageId,
+      emoji
+    })
+  }, [wsConnected])
+
   // Real-time event subscriptions
   const onNewMessage = useCallback((callback: (message: Message, conversationId: string) => void) => {
     const handler = (data: { message: Message; conversationId: string }) => {
@@ -171,6 +197,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     return wsClient.chat.onMessageDeleted(handler)
+  }, [])
+
+  const onReactionAdded = useCallback((callback: (messageId: string, emoji: string, userId: string) => void) => {
+    const handler = (data: { messageId: string; emoji: string; userId: string }) => {
+      callback(data.messageId, data.emoji, data.userId)
+    }
+
+    return wsClient.chat.onReactionAdded(handler)
+  }, [])
+
+  const onReactionRemoved = useCallback((callback: (messageId: string, emoji: string, userId: string) => void) => {
+    const handler = (data: { messageId: string; emoji: string; userId: string }) => {
+      callback(data.messageId, data.emoji, data.userId)
+    }
+
+    return wsClient.chat.onReactionRemoved(handler)
   }, [])
 
   const onUserPresenceUpdate = useCallback((callback: (userId: string, status: string, lastSeen?: Date) => void) => {
@@ -306,6 +348,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Message operations
         editMessage,
         deleteMessage,
+        addReaction,
+        removeReaction,
 
         // Typing indicators
         startTyping,
@@ -317,6 +361,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         onNewMessage,
         onMessageEdited,
         onMessageDeleted,
+        onReactionAdded,
+        onReactionRemoved,
         onUserPresenceUpdate,
       }}
     >

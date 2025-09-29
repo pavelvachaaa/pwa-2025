@@ -21,6 +21,7 @@ export class WSEventManager {
   }
 
   emit(event: string, data: any): void {
+    console.log('🔔 [EventManager] Emitting event:', event, 'Data:', data, 'Handlers:', this.getHandlerCount(event));
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
       handlers.forEach((handler) => {
@@ -30,6 +31,8 @@ export class WSEventManager {
           console.error(`[WS] Error in event handler for ${event}:`, error)
         }
       })
+    } else {
+      console.log('❌ [EventManager] No handlers registered for event:', event);
     }
   }
 

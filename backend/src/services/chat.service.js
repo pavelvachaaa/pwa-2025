@@ -95,16 +95,10 @@ class ChatService {
     };
   }
 
+  // We are getting it from partial key.. 
   async getMessageById(messageId, userId) {
     try {
-      // Get message with full data
-      const result = await chatRepository.getMessagesForConversation(
-        // We need to get the conversation ID first
-        null, userId, 1, 0 // This is a bit inefficient, ideally we'd have a getMessageById method
-      );
-
-      // For now, let's create a dedicated method in repository
-      return result.find(m => m.id === messageId);
+      return await chatRepository.getMessageById(messageId, userId);
     } catch (error) {
       logger.error({ error: error.message, messageId, userId }, 'Error getting message');
       throw error;

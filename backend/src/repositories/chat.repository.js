@@ -194,11 +194,20 @@ class ChatRepository {
         reply_msg.content as reply_to_content,
         reply_sender.display_name as reply_sender_name,
         COALESCE(
-          json_agg(
-            CASE WHEN mr.id IS NOT NULL THEN
-              json_build_object('emoji', mr.emoji, 'user_id', mr.user_id)
-            END
-          ) FILTER (WHERE mr.id IS NOT NULL),
+          (SELECT json_agg(
+            json_build_object(
+              'emoji', emoji,
+              'userIds', user_ids
+            )
+          )
+          FROM (
+            SELECT
+              mr.emoji,
+              json_agg(mr.user_id) as user_ids
+            FROM message_reactions mr
+            WHERE mr.message_id = m.id
+            GROUP BY mr.emoji
+          ) grouped_reactions),
           '[]'::json
         ) as reactions,
         CASE WHEN mrs.id IS NOT NULL THEN true ELSE false END as is_read_by_user
@@ -206,15 +215,25 @@ class ChatRepository {
       JOIN users sender ON m.sender_id = sender.id
       LEFT JOIN messages reply_msg ON m.reply_to = reply_msg.id
       LEFT JOIN users reply_sender ON reply_msg.sender_id = reply_sender.id
-      LEFT JOIN message_reactions mr ON m.id = mr.message_id
       LEFT JOIN message_read_status mrs ON m.id = mrs.message_id AND mrs.user_id = $2
       WHERE m.conversation_id = $1
-      GROUP BY m.id, sender.display_name, sender.avatar_url, reply_msg.content, reply_sender.display_name, mrs.id
       ORDER BY m.created_at DESC
       LIMIT $3 OFFSET $4
     `, [conversationId, userId, limit, offset]);
 
     return result.rows.reverse(); // Return in chronological order
+  }
+
+  async getMessageById(messageId, userId) {
+    const result = await pool.query(`
+      SELECT m.*
+      FROM messages m
+      JOIN conversations c ON m.conversation_id = c.id
+      WHERE m.id = $1::uuid
+      AND (c.user_a_id = $2::uuid OR c.user_b_id = $2::uuid)
+    `, [messageId, userId]);
+
+    return result.rows[0];
   }
 
   async updateMessage(messageId, userId, content) {

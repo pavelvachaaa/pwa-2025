@@ -36,6 +36,8 @@ export function ConversationView({
         onNewMessage,
         onMessageEdited,
         onMessageDeleted,
+        onReactionAdded,
+        onReactionRemoved,
         joinConversation,
         leaveConversation,
         onUserPresenceUpdate,
@@ -84,10 +86,51 @@ export function ConversationView({
                 setItems((prev) => prev.map((m) => (m.id === msg.id ? { ...m, ...msg, edited: true } : m)))
         })
         const offDel = onMessageDeleted((id) => setItems((prev) => prev.filter((m) => m.id !== id)))
+
+        const offReactionAdded = onReactionAdded((messageId, emoji, userId) => {
+            setItems((prev) => prev.map((m) => {
+                if (m.id !== messageId) return m
+
+                const reactions = m.reactions || []
+                const existingReaction = reactions.find(r => r.emoji === emoji)
+
+                if (existingReaction) {
+                    if (!existingReaction.userIds.includes(userId)) {
+                        existingReaction.userIds.push(userId)
+                    }
+                    return { ...m, reactions: [...reactions] }
+                } else {
+                    return {
+                        ...m,
+                        reactions: [...reactions, { emoji, userIds: [userId] }]
+                    }
+                }
+            }))
+        })
+
+        const offReactionRemoved = onReactionRemoved((messageId, emoji, userId) => {
+            setItems((prev) => prev.map((m) => {
+                if (m.id !== messageId) return m
+
+                const reactions = (m.reactions || []).map(r => {
+                    if (r.emoji === emoji) {
+                        return {
+                            ...r,
+                            userIds: r.userIds.filter(id => id !== userId)
+                        }
+                    }
+                    return r
+                }).filter(r => r.userIds.length > 0) // Remove empty reactions
+
+                return { ...m, reactions }
+            }))
+        })
         return () => {
             offNew()
             offEdit()
             offDel()
+            offReactionAdded()
+            offReactionRemoved()
         }
     }, [conversation.id, onNewMessage, onMessageEdited, onMessageDeleted])
 
@@ -130,10 +173,8 @@ export function ConversationView({
 
     const other = conversation.other_participant
 
-    // Title: always show the other participant's name for DM
     const title = other?.display_name ?? "Direct message"
 
-    // Compute presence strictly from the **second participant** (other)
     const otherStatus = other
         ? presence[other.id]?.status ?? other?.status ?? other?.presence?.status ?? "offline"
         : undefined

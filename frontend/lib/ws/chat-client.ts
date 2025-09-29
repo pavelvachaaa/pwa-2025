@@ -17,6 +17,11 @@ export interface MessageDeleteData {
   messageId: string
 }
 
+export interface ReactionData {
+  messageId: string
+  emoji: string
+}
+
 export class ChatClient {
   private connection: WSConnection
   private eventManager: WSEventManager
@@ -37,6 +42,14 @@ export class ChatClient {
 
   deleteMessage(data: MessageDeleteData): void {
     this.connection.emit('message:delete', data)
+  }
+
+  addReaction(data: ReactionData): void {
+    this.connection.emit('message:react', data)
+  }
+
+  removeReaction(data: ReactionData): void {
+    this.connection.emit('message:unreact', data)
   }
 
   joinConversation(conversationId: string): void {
@@ -92,6 +105,20 @@ export class ChatClient {
   onTypingStop(handler: (data: { conversationId: string; userId: string }) => void): () => void {
     this.eventManager.on('typing:user_stopped', handler)
     return () => this.eventManager.off('typing:user_stopped', handler)
+  }
+
+  onReactionAdded(handler: (data: { messageId: string; emoji: string; userId: string }) => void): () => void {
+    const wrappedHandler = (data: { messageId: string; emoji: string; userId: string }) => {
+      console.log('📨 [ChatClient] Received message:reaction_added:', data);
+      handler(data);
+    };
+    this.eventManager.on('message:reaction_added', wrappedHandler)
+    return () => this.eventManager.off('message:reaction_added', wrappedHandler)
+  }
+
+  onReactionRemoved(handler: (data: { messageId: string; emoji: string; userId: string }) => void): () => void {
+    this.eventManager.on('message:reaction_removed', handler)
+    return () => this.eventManager.off('message:reaction_removed', handler)
   }
 
 }
