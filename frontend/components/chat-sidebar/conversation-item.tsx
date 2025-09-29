@@ -34,7 +34,6 @@ export function ConversationItem({
   }
 
   const getLastMessagePreview = () => {
-    if (isTyping) return "typing..."
     return conversation.last_message?.content || "No messages yet"
   }
 

@@ -62,6 +62,20 @@ class ChatController {
 
       const result = await chatService.createConversation(userId, targetUserId);
 
+      const wsHandler = require('../socket/websocket.handler');
+      if (wsHandler.io) {
+        wsHandler.sendToUser(userId, 'conversation:created', {
+          conversation: result.conversation,
+          isInitiator: true
+        });
+        wsHandler.sendToUser(targetUserId, 'conversation:created', {
+          conversation: result.conversation,
+          isInitiator: false
+        });
+        
+        logger.debug({ userId, targetUserId, conversationId: result.conversation.id }, 'Conversation created notification sent via WebSocket');
+      }
+
       res.json({
         success: true,
         data: result.conversation

@@ -121,4 +121,9 @@ export class ChatClient {
     return () => this.eventManager.off('message:reaction_removed', handler)
   }
 
+  onConversationCreated(handler: (data: { conversation: any; isInitiator: boolean }) => void): () => void {
+    this.eventManager.on('conversation:created', handler)
+    return () => this.eventManager.off('conversation:created', handler)
+  }
+
 }

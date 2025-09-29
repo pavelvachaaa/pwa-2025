@@ -109,6 +109,10 @@ export class WebSocketClient {
         console.log('[Chat] Reaction removed:', data)
         this.eventManager.emit('message:reaction_removed', data)
       },
+      'conversation:created': (data) => {
+        console.log('[Chat] Conversation created:', data)
+        this.eventManager.emit('conversation:created', data)
+      },
       'conversation:joined': (data) => {
         console.log('[Chat] Joined conversation:', data)
         this.eventManager.emit('conversation:joined', data)

@@ -40,6 +40,7 @@ interface ChatContextType {
   onMessageDeleted: (callback: (messageId: string) => void) => () => void
   onReactionAdded: (callback: (messageId: string, emoji: string, userId: string) => void) => () => void
   onReactionRemoved: (callback: (messageId: string, emoji: string, userId: string) => void) => () => void
+  onConversationCreated: (callback: (conversation: Conversation, isInitiator: boolean) => void) => () => void
   onUserPresenceUpdate: (callback: (userId: string, status: string, lastSeen?: Date) => void) => () => void
 }
 
@@ -90,8 +91,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       const response = await chatApi.createConversation(targetUserId)
       if (response.success && response.data) {
-        // Reload conversations to include the new one
-        await loadConversations()
         return response.data
       }
       return null
@@ -99,7 +98,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.error('Failed to create conversation:', error)
       return null
     }
-  }, [loadConversations])
+  }, [])
 
   const loadMessages = useCallback(async (conversationId: string): Promise<Message[]> => {
     try {
@@ -215,6 +214,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return wsClient.chat.onReactionRemoved(handler)
   }, [])
 
+  const onConversationCreated = useCallback((callback: (conversation: Conversation, isInitiator: boolean) => void) => {
+    const handler = (data: { conversation: Conversation; isInitiator: boolean }) => {
+      console.log('[ChatContext] Conversation created:', data)
+      callback(data.conversation, data.isInitiator)
+    }
+
+    return wsClient.chat.onConversationCreated(handler)
+  }, [])
+
   const onUserPresenceUpdate = useCallback((callback: (userId: string, status: string, lastSeen?: Date) => void) => {
     const handler = (data: { userId: string; status: string; lastSeen?: string }) => {
       console.log('[ChatContext] Raw presence data received:', data)
@@ -318,16 +326,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setWsConnected(false)
     }
 
+    const handleConversationCreated = (conversation: Conversation, isInitiator: boolean) => {
+      console.log('[Chat] Conversation created, updating local list:', conversation)
+      setConversations(prev => {
+        const exists = prev.some(conv => conv.id === conversation.id)
+        if (exists) {
+          return prev
+        }
+        return [conversation, ...prev]
+      })
+    }
+
     const unsubscribeError = wsClient.onError(handleError)
     const unsubscribeConnected = wsClient.onConnected(handleConnected)
     const unsubscribeDisconnected = wsClient.onDisconnected(handleDisconnected)
+    const unsubscribeConversationCreated = onConversationCreated(handleConversationCreated)
 
     return () => {
       unsubscribeError()
       unsubscribeConnected()
       unsubscribeDisconnected()
+      unsubscribeConversationCreated()
     }
-  }, [wsConnected])
+  }, [wsConnected, onConversationCreated])
 
   return (
     <ChatContext.Provider
@@ -363,6 +384,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         onMessageDeleted,
         onReactionAdded,
         onReactionRemoved,
+        onConversationCreated,
         onUserPresenceUpdate,
       }}
     >
