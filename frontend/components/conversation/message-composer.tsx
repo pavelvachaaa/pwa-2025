@@ -4,6 +4,12 @@ import { useCallback, useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send } from "lucide-react"
+import type { Message, Conversation } from "@/types"
+import { ReplyPreview } from "./reply-preview"
+import { useAuth } from "@/lib/auth/context"
+import { getSenderName } from "@/lib/utils/chat"
+import { validateMessageContent } from "@/lib/utils/message-utils"
+import { TypingManager } from "@/lib/utils/typing-utils"
 
 interface MessageComposerProps {
     onSend: (content: string) => void
@@ -11,68 +17,63 @@ interface MessageComposerProps {
     onStopTyping?: () => void
     disabled?: boolean
     className?: string
+    replyingTo?: Message | null
+    onCancelReply?: () => void
+    conversation?: Conversation
 }
 
-export function MessageComposer({ onSend, onStartTyping, onStopTyping, disabled, className }: MessageComposerProps) {
+export function MessageComposer({ 
+    onSend, 
+    onStartTyping, 
+    onStopTyping, 
+    disabled, 
+    className, 
+    replyingTo, 
+    onCancelReply,
+    conversation 
+}: MessageComposerProps) {
     const [text, setText] = useState("")
-    const [isTyping, setIsTyping] = useState(false)
-    const typingTimeoutRef = useRef<NodeJS.Timeout>()
+    const typingManagerRef = useRef<TypingManager | null>(null)
 
-
-    const send = useCallback(() => {
-        const v = text.trim()
-        if (!v || disabled) return
-
-        if (isTyping) {
-            onStopTyping?.()
-            setIsTyping(false)
+    useEffect(() => {
+        if (onStartTyping && onStopTyping && !disabled) {
+            typingManagerRef.current = new TypingManager(onStartTyping, onStopTyping)
+        } else {
+            typingManagerRef.current?.cleanup()
+            typingManagerRef.current = null
         }
 
-        onSend(v)
+        return () => {
+            typingManagerRef.current?.cleanup()
+        }
+    }, [onStartTyping, onStopTyping, disabled])
+
+    const send = useCallback(() => {
+        const validContent = validateMessageContent(text)
+        if (!validContent || disabled) return
+
+        typingManagerRef.current?.stopTyping()
+        onSend(validContent)
         setText("")
-    }, [text, disabled, onSend, onStopTyping, isTyping])
+    }, [text, disabled, onSend])
 
     const handleTextChange = useCallback((value: string) => {
         setText(value)
+        typingManagerRef.current?.handleTextChange(value)
+    }, [])
 
-        if (!onStartTyping || !onStopTyping || disabled) return
-
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current)
-            typingTimeoutRef.current = undefined
-        }
-
-        if (value.trim() && !isTyping) {
-            onStartTyping()
-            setIsTyping(true)
-        }
-
-        if (value.trim()) {
-            typingTimeoutRef.current = setTimeout(() => {
-                onStopTyping()
-                setIsTyping(false)
-            }, 1000)
-        } else {
-            if (isTyping) {
-                onStopTyping()
-                setIsTyping(false)
-            }
-        }
-    }, [onStartTyping, onStopTyping, disabled, isTyping])
-
-    useEffect(() => {
-        return () => {
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current)
-            }
-            if (isTyping && onStopTyping) {
-                onStopTyping()
-            }
-        }
-    }, [isTyping, onStopTyping])
+    const { user } = useAuth()
 
     return (
         <div className={className}>
+            {replyingTo && onCancelReply && (
+                <ReplyPreview
+                    message={replyingTo}
+                    senderName={getSenderName(replyingTo.sender_id, user, conversation || null)}
+                    onCancel={onCancelReply}
+                    className="mx-3"
+                />
+            )}
             <div className="border-t p-3">
                 <div className="flex items-center gap-2">
                     <Input

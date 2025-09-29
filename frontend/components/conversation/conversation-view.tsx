@@ -12,6 +12,8 @@ import { EmptyMessages } from "./empty-messages"
 import { useMessages } from "@/hooks/use-messages"
 import { usePresence } from "@/hooks/use-presence"
 import { useTypingIndicator } from "@/hooks/use-typing-indicator"
+import { useReply } from "@/hooks/use-reply"
+import { scrollToBottom, getUserPresenceStatus, isUserOnline } from "@/lib/utils/ui-utils"
 
 interface ConversationViewProps {
     conversation: Conversation
@@ -43,6 +45,7 @@ export function ConversationView({
     const { messages, isLoading: messagesLoading } = useMessages(conversation.id)
     const { presence, getPresenceText } = usePresence()
     const conversationTyping = useTypingIndicator(currentUserId, user?.id)
+    const { replyingTo, setReplyingTo, clearReply } = useReply()
     const endRef = useRef<HTMLDivElement>(null)
 
 
@@ -54,16 +57,20 @@ export function ConversationView({
 
 
 
-    const send = (content: string) => sendMessage(conversation.id, content)
-    const scrollToBottom = () => endRef.current?.scrollIntoView({ behavior: "smooth" })
+    const send = (content: string) => {
+        sendMessage(conversation.id, content, replyingTo?.id)
+        clearReply()
+    }
+
+    const scrollToEnd = () => scrollToBottom(endRef)
 
     useEffect(() => {
-        scrollToBottom()
+        scrollToEnd()
     }, [messages.length])
 
     const other = conversation.other_participant
     const otherPresence = other ? presence[other.id] : undefined
-    const otherStatus = otherPresence?.status ?? other?.status ?? "offline"
+    const otherStatus = getUserPresenceStatus(other?.status, otherPresence?.status)
     const presenceText = other ? getPresenceText(other, otherPresence) : "Offline"
 
     return (
@@ -71,7 +78,7 @@ export function ConversationView({
             <ConversationHeader
                 conversation={conversation}
                 presenceText={presenceText}
-                isOnline={otherStatus === "online"}
+                isOnline={isUserOnline(otherStatus)}
                 onBack={onBack}
                 onOpenSidebar={onOpenSidebar}
             />
@@ -89,6 +96,10 @@ export function ConversationView({
                                     key={message.id}
                                     message={message}
                                     isOwn={senderId === (user?.id || currentUserId)}
+                                    onReply={setReplyingTo}
+                                    replyingTo={replyingTo}
+                                    messages={messages}
+                                    conversation={conversation}
                                 />
                             )
                         })
@@ -105,6 +116,9 @@ export function ConversationView({
                     onSend={send}
                     onStartTyping={() => startTyping(conversation.id)}
                     onStopTyping={() => stopTyping(conversation.id)}
+                    replyingTo={replyingTo}
+                    onCancelReply={clearReply}
+                    conversation={conversation}
                 />
             </div>
         </div>

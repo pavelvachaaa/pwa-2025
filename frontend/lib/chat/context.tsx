@@ -15,7 +15,7 @@ interface ChatContextType {
   wsConnected: boolean
 
   // Chat operations
-  sendMessage: (conversationId: string, content: string) => Promise<void>
+  sendMessage: (conversationId: string, content: string, replyTo?: string) => Promise<void>
   createConversation: (targetUserId: string) => Promise<Conversation | null>
   loadConversations: () => Promise<void>
   loadMessages: (conversationId: string) => Promise<Message[]>
@@ -75,7 +75,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, user])
 
   // Chat operations
-  const sendMessage = useCallback(async (conversationId: string, content: string) => {
+  const sendMessage = useCallback(async (conversationId: string, content: string, replyTo?: string) => {
     if (!wsConnected) {
       throw new Error('WebSocket not connected')
     }
@@ -83,7 +83,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     wsClient.chat.sendMessage({
       conversationId,
       content,
-      messageType: 'text'
+      messageType: 'text',
+      replyTo
     })
   }, [wsConnected])
 
