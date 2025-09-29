@@ -124,6 +124,10 @@ export class WebSocketClient {
       'typing:user_stopped': (data) => {
         console.log('[Chat] User stopped typing:', data)
         this.eventManager.emit('typing:user_stopped', data)
+      },
+      'conversation:read_by_user': (data) => {
+        console.log('[Chat] Conversation read by user:', data)
+        this.eventManager.emit('conversation:read_by_user', data)
       }
     })
 

@@ -9,7 +9,9 @@ import { MessageComposer } from "./message-composer"
 import { ConversationHeader } from "./conversation-header"
 import { TypingIndicator } from "./typing-indicator"
 import { EmptyMessages } from "./empty-messages"
-import { useMessages } from "@/hooks/use-messages"
+import { MessageLoading, LoadMoreIndicator } from "./message-loading"
+import { useInfiniteMessages } from "@/hooks/use-infinite-messages"
+import { useMarkAsRead } from "@/hooks/use-mark-as-read"
 import { usePresence } from "@/hooks/use-presence"
 import { useTypingIndicator } from "@/hooks/use-typing-indicator"
 import { useReply } from "@/hooks/use-reply"
@@ -42,7 +44,16 @@ export function ConversationView({
         stopTyping,
     } = useChat()
 
-    const { messages, isLoading: messagesLoading } = useMessages(conversation.id)
+    const { 
+        messages, 
+        isLoading: messagesLoading, 
+        isLoadingMore, 
+        hasMore, 
+        scrollRef 
+    } = useInfiniteMessages(conversation.id)
+    
+    useMarkAsRead(conversation.id, wsConnected)
+    
     const { presence, getPresenceText } = usePresence()
     const conversationTyping = useTypingIndicator(currentUserId, user?.id)
     const { replyingTo, setReplyingTo, clearReply } = useReply()
@@ -83,11 +94,22 @@ export function ConversationView({
                 onOpenSidebar={onOpenSidebar}
             />
 
-            {/* Scrollable Messages Area */}
-            <div className="flex-1 overflow-y-auto p-3">
+            {/* Scrollable Messages Area with Infinite Scroll */}
+            <div 
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto p-3"
+            >
                 <div className="space-y-2">
-                    {messagesLoading || messages.length === 0 ? (
-                        <EmptyMessages isLoading={messagesLoading} />
+                    {/* Load more indicator at top */}
+                    <LoadMoreIndicator 
+                        isLoading={isLoadingMore} 
+                        hasMore={hasMore}
+                    />
+
+                    {messagesLoading ? (
+                        <MessageLoading />
+                    ) : messages.length === 0 ? (
+                        <EmptyMessages isLoading={false} />
                     ) : (
                         messages.map((message) => {
                             const senderId = message.sender_id

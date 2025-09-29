@@ -14,7 +14,7 @@ export class WSConnection {
 
   constructor(config: WSConfig = {}) {
     this.config = {
-      url: config.url || "http://localhost:3333",
+      url: process.env.NEXT_PUBLIC_WS_URL || "https://pwab.pavel-vacha.cz",
       reconnectInterval: config.reconnectInterval || 3000,
       maxReconnectAttempts: config.maxReconnectAttempts || 5,
       ...config,

@@ -18,7 +18,7 @@ interface ChatContextType {
   sendMessage: (conversationId: string, content: string, replyTo?: string) => Promise<void>
   createConversation: (targetUserId: string) => Promise<Conversation | null>
   loadConversations: () => Promise<void>
-  loadMessages: (conversationId: string) => Promise<Message[]>
+  loadMessages: (conversationId: string, limit?: number, offset?: number) => Promise<Message[]>
   joinConversation: (conversationId: string) => Promise<void>
   leaveConversation: (conversationId: string) => void
 
@@ -34,6 +34,9 @@ interface ChatContextType {
   addReaction: (messageId: string, emoji: string) => Promise<void>
   removeReaction: (messageId: string, emoji: string) => Promise<void>
 
+  // Conversation management
+  markConversationAsRead: (conversationId: string) => Promise<void>
+
   // Real-time updates
   onNewMessage: (callback: (message: Message, conversationId: string) => void) => () => void
   onMessageEdited: (callback: (message: Message, conversationId: string) => void) => () => void
@@ -41,6 +44,7 @@ interface ChatContextType {
   onReactionAdded: (callback: (messageId: string, emoji: string, userId: string) => void) => () => void
   onReactionRemoved: (callback: (messageId: string, emoji: string, userId: string) => void) => () => void
   onConversationCreated: (callback: (conversation: Conversation, isInitiator: boolean) => void) => () => void
+  onConversationMarkedRead: (callback: (conversationId: string, userId: string, readAt: Date) => void) => () => void
   onUserPresenceUpdate: (callback: (userId: string, status: string, lastSeen?: Date) => void) => () => void
 }
 
@@ -101,9 +105,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const loadMessages = useCallback(async (conversationId: string): Promise<Message[]> => {
+  const loadMessages = useCallback(async (conversationId: string, limit = 50, offset = 0): Promise<Message[]> => {
     try {
-      const response = await chatApi.getMessages(conversationId)
+      const response = await chatApi.getMessages(conversationId, limit, offset)
       if (response.success && response.data) {
         return response.data
       }
@@ -174,6 +178,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
   }, [wsConnected])
 
+  const markConversationAsRead = useCallback(async (conversationId: string) => {
+    try {
+      // Use API call for persistence
+      await chatApi.markAsRead(conversationId)
+      
+      // Also emit WebSocket event for real-time updates
+      if (wsConnected) {
+        wsClient.chat.markAsRead(conversationId)
+      }
+    } catch (error) {
+      console.error('Failed to mark conversation as read:', error)
+      throw error
+    }
+  }, [wsConnected])
+
   // Real-time event subscriptions
   const onNewMessage = useCallback((callback: (message: Message, conversationId: string) => void) => {
     const handler = (data: { message: Message; conversationId: string }) => {
@@ -222,6 +241,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     return wsClient.chat.onConversationCreated(handler)
+  }, [])
+
+  const onConversationMarkedRead = useCallback((callback: (conversationId: string, userId: string, readAt: Date) => void) => {
+    const handler = (data: { conversationId: string; userId: string; readAt: string | Date }) => {
+      const readAtDate = typeof data.readAt === 'string' ? new Date(data.readAt) : data.readAt
+      callback(data.conversationId, data.userId, readAtDate)
+    }
+
+    return wsClient.chat.onConversationMarkedRead(handler)
   }, [])
 
   const onUserPresenceUpdate = useCallback((callback: (userId: string, status: string, lastSeen?: Date) => void) => {
@@ -338,18 +366,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       })
     }
 
+    const handleConversationMarkedRead = (conversationId: string, userId: string, readAt: Date) => {
+      console.log('[Chat] Conversation marked as read, updating unread count:', { conversationId, userId, readAt })
+      setConversations(prev => prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, unread_count: 0 }
+          : conv
+      ))
+    }
+
     const unsubscribeError = wsClient.onError(handleError)
     const unsubscribeConnected = wsClient.onConnected(handleConnected)
     const unsubscribeDisconnected = wsClient.onDisconnected(handleDisconnected)
     const unsubscribeConversationCreated = onConversationCreated(handleConversationCreated)
+    const unsubscribeConversationMarkedRead = onConversationMarkedRead(handleConversationMarkedRead)
 
     return () => {
       unsubscribeError()
       unsubscribeConnected()
       unsubscribeDisconnected()
       unsubscribeConversationCreated()
+      unsubscribeConversationMarkedRead()
     }
-  }, [wsConnected, onConversationCreated])
+  }, [wsConnected, onConversationCreated, onConversationMarkedRead])
 
   return (
     <ChatContext.Provider
@@ -373,6 +412,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addReaction,
         removeReaction,
 
+        // Conversation management
+        markConversationAsRead,
+
         // Typing indicators
         startTyping,
         stopTyping,
@@ -386,6 +428,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         onReactionAdded,
         onReactionRemoved,
         onConversationCreated,
+        onConversationMarkedRead,
         onUserPresenceUpdate,
       }}
     >

@@ -46,9 +46,6 @@ services:
       # Bcrypt
       BCRYPT_COST: ${BCRYPT_COST:-12}
 
-      # Google OAuth
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3001/auth/google/callback}
     ports:
       - "${PORT:-3333}:${PORT:-3333}"

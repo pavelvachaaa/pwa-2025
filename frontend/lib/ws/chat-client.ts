@@ -126,4 +126,9 @@ export class ChatClient {
     return () => this.eventManager.off('conversation:created', handler)
   }
 
+  onConversationMarkedRead(handler: (data: { conversationId: string; userId: string; readAt: Date }) => void): () => void {
+    this.eventManager.on('conversation:read_by_user', handler)
+    return () => this.eventManager.off('conversation:read_by_user', handler)
+  }
+
 }
