@@ -25,10 +25,4 @@ router.delete('/messages/:messageId/reactions', chatController.removeReaction);
 // Read status
 router.post('/conversations/:conversationId/read', chatController.markAsRead);
 
-// Drafts
-router.get('/conversations/:conversationId/draft', chatController.getDraft);
-router.post('/conversations/:conversationId/draft', chatController.saveDraft);
-
-
-
 module.exports = router;

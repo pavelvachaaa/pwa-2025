@@ -39,10 +39,6 @@ CREATE TABLE messages (
     is_edited BOOLEAN NOT NULL DEFAULT FALSE,
     edited_at TIMESTAMPTZ,
 
-    is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
-    pinned_at TIMESTAMPTZ,
-    pinned_by UUID REFERENCES users(id) ON DELETE SET NULL,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -178,71 +174,6 @@ CREATE INDEX idx_user_presence_status ON user_presence (status);
 CREATE TRIGGER trg_presence_touch_updated
   BEFORE UPDATE ON user_presence
   FOR EACH ROW EXECUTE FUNCTION touch_row_updated_at();
-
-
-CREATE TABLE typing_indicators (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT typing_unique UNIQUE (conversation_id, user_id)
-);
-CREATE INDEX idx_typing_conversation_id ON typing_indicators (conversation_id);
-
--- Participant-only typing:
-CREATE OR REPLACE FUNCTION enforce_typer_is_participant()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM conversations c
-        WHERE c.id = NEW.conversation_id
-          AND (NEW.user_id = c.user_a_id OR NEW.user_id = c.user_b_id)
-    ) THEN
-        RAISE EXCEPTION 'User % is not a participant for typing in conversation %',
-            NEW.user_id, NEW.conversation_id;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_typer_is_participant
-  BEFORE INSERT OR UPDATE ON typing_indicators
-  FOR EACH ROW EXECUTE FUNCTION enforce_typer_is_participant();
-
-CREATE TABLE message_drafts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT draft_unique UNIQUE (conversation_id, user_id)
-);
-CREATE INDEX idx_drafts_user_conversation ON message_drafts (user_id, conversation_id);
-
-CREATE TRIGGER trg_drafts_touch_updated
-  BEFORE UPDATE ON message_drafts
-  FOR EACH ROW EXECUTE FUNCTION touch_row_updated_at();
-
-CREATE OR REPLACE FUNCTION enforce_drafter_is_participant()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM conversations c
-        WHERE c.id = NEW.conversation_id
-          AND (NEW.user_id = c.user_a_id OR NEW.user_id = c.user_b_id)
-    ) THEN
-        RAISE EXCEPTION 'User % is not a participant for draft in conversation %',
-            NEW.user_id, NEW.conversation_id;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_drafter_is_participant
-  BEFORE INSERT OR UPDATE ON message_drafts
-  FOR EACH ROW EXECUTE FUNCTION enforce_drafter_is_participant();
-
 
 CREATE TABLE message_attachments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

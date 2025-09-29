@@ -242,9 +242,6 @@ class WebSocketHandler {
       try {
         const { conversationId } = data;
 
-        await chatService.setTyping(conversationId, userId, true);
-
-        // Broadcast typing to others in the conversation
         socket.to(conversationId).emit('typing:user_started', { conversationId, userId });
 
         logger.debug({ userId, conversationId }, 'User started typing');
@@ -258,9 +255,6 @@ class WebSocketHandler {
       try {
         const { conversationId } = data;
 
-        await chatService.setTyping(conversationId, userId, false);
-
-        // Broadcast typing stop to others in the conversation
         socket.to(conversationId).emit('typing:user_stopped', { conversationId, userId });
 
         logger.debug({ userId, conversationId }, 'User stopped typing');

@@ -82,10 +82,6 @@ export interface ChatContextType {
   removeReaction: (messageId: string, emoji: string) => void;
   editMessage: (messageId: string, newContent: string) => void;
   deleteMessage: (messageId: string) => void;
-  pinMessage: (messageId: string) => void;
-  unpinMessage: (messageId: string) => void;
-  saveDraft: (conversationId: string, draft: string) => void;
-  getDraft: (conversationId: string) => string;
 }
 
 export interface MessageComposerProps {
@@ -145,9 +141,6 @@ export interface Message {
   is_edited?: boolean;
   edited_at?: string;
   readBy?: MessageReadStatus[];
-  isPinned?: boolean;
-  pinnedAt?: Date;
-  pinnedBy?: string;
 }
 
 export interface Conversation {
@@ -162,5 +155,4 @@ export interface Conversation {
   isTyping?: string[];
   created_at: string;
   updated_at: string;
-  draft?: string;
 }

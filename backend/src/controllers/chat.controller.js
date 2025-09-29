@@ -239,47 +239,6 @@ class ChatController {
 
 
 
-  // Get/save drafts
-  async getDraft(req, res) {
-    try {
-      const userId = req.user.id;
-      const { conversationId } = req.params;
-
-      const result = await chatService.getDraft(conversationId, userId);
-
-      res.json({
-        success: true,
-        data: { content: result.content }
-      });
-    } catch (error) {
-      logger.error({ error: error.message, conversationId: req.params.conversationId, userId: req.user?.userId }, 'Error getting draft');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  }
-
-  async saveDraft(req, res) {
-    try {
-      const userId = req.user.id;
-      const { conversationId } = req.params;
-      const { content } = req.body;
-
-      await chatService.saveDraft(conversationId, userId, content || '');
-
-      res.json({
-        success: true,
-        message: 'Draft saved successfully'
-      });
-    } catch (error) {
-      logger.error({ error: error.message, conversationId: req.params.conversationId, userId: req.user?.userId }, 'Error saving draft');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  }
 
 }
 

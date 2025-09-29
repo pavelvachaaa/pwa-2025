@@ -18,11 +18,11 @@ export function MessageComposer({ onSend, onStartTyping, onStopTyping, disabled,
     const [isTyping, setIsTyping] = useState(false)
     const typingTimeoutRef = useRef<NodeJS.Timeout>()
 
+
     const send = useCallback(() => {
         const v = text.trim()
         if (!v || disabled) return
 
-        // Stop typing when sending
         if (isTyping) {
             onStopTyping?.()
             setIsTyping(false)
@@ -37,34 +37,39 @@ export function MessageComposer({ onSend, onStartTyping, onStopTyping, disabled,
 
         if (!onStartTyping || !onStopTyping || disabled) return
 
-        // Start typing if not already typing
-        if (!isTyping && value.trim()) {
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current)
+            typingTimeoutRef.current = undefined
+        }
+
+        if (value.trim() && !isTyping) {
             onStartTyping()
             setIsTyping(true)
         }
 
-        // Clear existing timeout
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current)
-        }
-
-        // Set timeout to stop typing after 1 second of inactivity
-        typingTimeoutRef.current = setTimeout(() => {
+        if (value.trim()) {
+            typingTimeoutRef.current = setTimeout(() => {
+                onStopTyping()
+                setIsTyping(false)
+            }, 1000)
+        } else {
             if (isTyping) {
                 onStopTyping()
                 setIsTyping(false)
             }
-        }, 1000)
+        }
     }, [onStartTyping, onStopTyping, disabled, isTyping])
 
-    // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current)
             }
+            if (isTyping && onStopTyping) {
+                onStopTyping()
+            }
         }
-    }, [])
+    }, [isTyping, onStopTyping])
 
     return (
         <div className={className}>

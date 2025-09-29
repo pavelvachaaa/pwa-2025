@@ -1,18 +1,6 @@
 import { api, ApiResponse } from './api';
 import type { Conversation, Message, User } from '@/types';
 
-interface ConversationsResponse {
-  conversations: Conversation[];
-}
-
-interface MessagesResponse {
-  messages: Message[];
-}
-
-interface CreateConversationRequest {
-  targetUserId: string;
-}
-
 interface SendMessageRequest {
   conversationId: string;
   content: string;
@@ -25,7 +13,6 @@ interface SearchUsersResponse {
 }
 
 export const chatApi = {
-  // Conversations
   async getConversations(): Promise<ApiResponse<Conversation[]>> {
     try {
       const response = await api.get('/chat/conversations');
@@ -118,7 +105,6 @@ export const chatApi = {
     }
   },
 
-  // Message interactions
   async addReaction(messageId: string, emoji: string): Promise<ApiResponse<void>> {
     try {
       await api.post(`/chat/messages/${messageId}/reactions`, { emoji });
@@ -150,7 +136,6 @@ export const chatApi = {
     }
   },
 
-  // Read status
   async markAsRead(conversationId: string): Promise<ApiResponse<void>> {
     try {
       await api.post(`/chat/conversations/${conversationId}/read`);
@@ -161,36 +146,6 @@ export const chatApi = {
       return {
         success: false,
         error: error.response?.data?.error || error.message || 'Failed to mark as read'
-      };
-    }
-  },
-
-  // Drafts
-  async getDraft(conversationId: string): Promise<ApiResponse<string>> {
-    try {
-      const response = await api.get(`/chat/conversations/${conversationId}/draft`);
-      return {
-        success: true,
-        data: response.data.content || ''
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to get draft'
-      };
-    }
-  },
-
-  async saveDraft(conversationId: string, content: string): Promise<ApiResponse<void>> {
-    try {
-      await api.post(`/chat/conversations/${conversationId}/draft`, { content });
-      return {
-        success: true
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to save draft'
       };
     }
   },

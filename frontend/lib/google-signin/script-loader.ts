@@ -41,7 +41,7 @@ export function loadGoogleScript(): Promise<void> {
 }
 
 export function isGoogleScriptReady(): boolean {
-  return isGoogleScriptLoaded && typeof window !== 'undefined' && window.google;
+  return isGoogleScriptLoaded && typeof window !== 'undefined' && !!window.google;
 }
 
 declare global {

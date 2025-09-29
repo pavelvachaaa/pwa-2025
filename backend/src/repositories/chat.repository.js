@@ -342,66 +342,6 @@ class ChatRepository {
     return result.rows;
   }
 
-  // Typing indicators
-  async setTypingIndicator(conversationId, userId) {
-    await pool.query(
-      `INSERT INTO typing_indicators (conversation_id, user_id)
-       VALUES ($1, $2)
-       ON CONFLICT (conversation_id, user_id) DO UPDATE SET created_at = NOW()`,
-      [conversationId, userId]
-    );
-  }
-
-  async removeTypingIndicator(conversationId, userId) {
-    await pool.query(
-      'DELETE FROM typing_indicators WHERE conversation_id = $1 AND user_id = $2',
-      [conversationId, userId]
-    );
-  }
-
-  async getTypingUsers(conversationId) {
-    // Clean up old typing indicators (older than 10 seconds)
-    await pool.query(
-      'DELETE FROM typing_indicators WHERE created_at < NOW() - INTERVAL \'10 seconds\''
-    );
-
-    const result = await pool.query(
-      'SELECT user_id FROM typing_indicators WHERE conversation_id = $1',
-      [conversationId]
-    );
-
-    return result.rows.map(row => row.user_id);
-  }
-
-  // Draft messages
-  async saveDraft(conversationId, userId, content) {
-    const result = await pool.query(
-      `INSERT INTO message_drafts (conversation_id, user_id, content)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (conversation_id, user_id) DO UPDATE SET
-       content = $3, updated_at = NOW()
-       RETURNING *`,
-      [conversationId, userId, content]
-    );
-
-    return result.rows[0];
-  }
-
-  async getDraft(conversationId, userId) {
-    const result = await pool.query(
-      'SELECT content FROM message_drafts WHERE conversation_id = $1 AND user_id = $2',
-      [conversationId, userId]
-    );
-
-    return result.rows[0]?.content || '';
-  }
-
-  async deleteDraft(conversationId, userId) {
-    await pool.query(
-      'DELETE FROM message_drafts WHERE conversation_id = $1 AND user_id = $2',
-      [conversationId, userId]
-    );
-  }
 }
 
 module.exports = new ChatRepository();

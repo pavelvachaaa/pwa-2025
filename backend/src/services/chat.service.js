@@ -67,7 +67,6 @@ class ChatService {
         throw new Error('Message content is required');
       }
 
-      // The database trigger will validate participant access, so we can be optimistic here
       const message = await chatRepository.createMessage({
         conversationId,
         senderId: userId,
@@ -75,10 +74,6 @@ class ChatService {
         messageType,
         replyTo
       });
-
-      // Clear any draft and typing indicator for this conversation
-      await chatRepository.deleteDraft(conversationId, userId);
-      await chatRepository.removeTypingIndicator(conversationId, userId);
 
       return { message: await this.getBasicMessageInfo(message) };
     } catch (error) {
@@ -171,43 +166,6 @@ class ChatService {
       return { success: true };
     } catch (error) {
       logger.error({ error: error.message, conversationId, userId }, 'Error marking conversation as read');
-      throw error;
-    }
-  }
-
-
-  async setTyping(conversationId, userId, isTyping) {
-    try {
-      if (isTyping) {
-        await chatRepository.setTypingIndicator(conversationId, userId);
-      } else {
-        await chatRepository.removeTypingIndicator(conversationId, userId);
-      }
-
-      const typingUsers = await chatRepository.getTypingUsers(conversationId);
-      return { typingUsers };
-    } catch (error) {
-      logger.error({ error: error.message, conversationId, userId, isTyping }, 'Error setting typing indicator');
-      throw error;
-    }
-  }
-
-  async saveDraft(conversationId, userId, content) {
-    try {
-      await chatRepository.saveDraft(conversationId, userId, content);
-      return { success: true };
-    } catch (error) {
-      logger.error({ error: error.message, conversationId, userId, content }, 'Error saving draft');
-      throw error;
-    }
-  }
-
-  async getDraft(conversationId, userId) {
-    try {
-      const content = await chatRepository.getDraft(conversationId, userId);
-      return { content };
-    } catch (error) {
-      logger.error({ error: error.message, conversationId, userId }, 'Error getting draft');
       throw error;
     }
   }
