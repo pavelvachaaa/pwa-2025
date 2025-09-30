@@ -4,6 +4,7 @@ const express = require('express');
 const { createServer } = require('http');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 
 const config = require('@/config');
 const logger = require('@utils/logger').child({ module: 'server' });
@@ -21,19 +22,19 @@ const OAuthRepository = require('@repositories/impl/oauth.repository');
 const SessionRepository = require('@repositories/impl/session.repository');
 
 container.register('chatRepository', (c) => {
-  return new ChatRepository(c.resolve('db'));
+  return new ChatRepository(c.resolve('db'), logger.child({ repo: 'chat' }));
 });
 
 container.register('userRepository', (c) => {
-  return new UserRepository(c.resolve('db'));
+  return new UserRepository(c.resolve('db'), logger.child({ repo: 'user' }));
 });
 
 container.register('oauthRepository', (c) => {
-  return new OAuthRepository(c.resolve('db'));
+  return new OAuthRepository(c.resolve('db'), logger.child({ repo: 'oauth' }));
 });
 
 container.register('sessionRepository', (c) => {
-  return new SessionRepository(c.resolve('db'));
+  return new SessionRepository(c.resolve('db'), logger.child({ repo: 'session' }));
 });
 
 // 3. Services
@@ -98,9 +99,11 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(compression());
 app.use(cookieParser());
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 const authRoutes = require('@routes/auth.routes');
 const chatRoutes = require('@routes/chat.routes');
@@ -138,6 +141,15 @@ app.get('/health', async (req, res) => {
       error: error.message,
     });
   }
+});
+
+app.use((req, res, next) => {
+  res.status(404).json({
+    error: {
+      code: 'NOT_FOUND',
+      path: req.originalUrl
+    }
+  });
 });
 
 app.use(errorHandler);

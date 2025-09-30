@@ -1,8 +1,7 @@
-const logger = require('@utils/logger');
-
 class ChatRepository {
-  constructor(pool) {
+  constructor(pool, logger) {
     this.pool = pool;
+    this.logger = logger || require('@utils/logger').child({ module: 'chatRepository' });
   }
 
   async createConversation({ userAId, userBId, createdBy, avatarUrl = null }) {
@@ -68,7 +67,7 @@ class ChatRepository {
   }
 
   async getConversationById(conversationId, userId) {
-    logger.debug({ conversationId, userId }, 'Repository: Querying conversation by ID');
+    this.logger.debug({ conversationId, userId }, 'Repository: Querying conversation by ID');
 
     const participantCheck = await this.pool.query(`
       SELECT c.*, user_a.display_name as user_a_name, user_b.display_name as user_b_name
@@ -80,7 +79,7 @@ class ChatRepository {
     `, [conversationId, userId]);
 
     if (participantCheck.rows.length === 0) {
-      logger.warn({ conversationId, userId }, 'User is not a participant or conversation not found');
+      this.logger.warn({ conversationId, userId }, 'User is not a participant or conversation not found');
       return null;
     }
 
@@ -130,7 +129,7 @@ class ChatRepository {
       WHERE c.id = $1::uuid
     `, [conversationId, userId]);
 
-    logger.debug({ conversationId, userId, rowCount: result.rows.length }, 'Repository: Query result');
+    this.logger.debug({ conversationId, userId, rowCount: result.rows.length }, 'Repository: Query result');
 
     return result.rows[0];
   }

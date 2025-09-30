@@ -1,8 +1,7 @@
-const logger = require('@utils/logger').child({ module: 'sessionRepository' });
-
 class SessionRepository {
-  constructor(pool) {
+  constructor(pool, logger) {
     this.pool = pool;
+    this.logger = logger || require('@utils/logger').child({ module: 'sessionRepository' });
   }
 
   async create({ userId, refreshTokenHash, userAgent, ipAddress, expiresAt }) {
@@ -15,13 +14,13 @@ class SessionRepository {
       const values = [userId, refreshTokenHash, userAgent, ipAddress, expiresAt];
       const result = await this.pool.query(query, values);
 
-      logger.info({
+      this.logger.info({
         sessionId: result.rows[0].id,
         userId
       }, 'User session created successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, userId }, 'Failed to create user session');
+      this.logger.error({ err: error, userId }, 'Failed to create user session');
       throw error;
     }
   }
@@ -40,7 +39,7 @@ class SessionRepository {
       const result = await this.pool.query(query, [refreshTokenHash]);
       return result.rows[0] || null;
     } catch (error) {
-      logger.error({ err: error }, 'Failed to find valid session by hash');
+      this.logger.error({ err: error }, 'Failed to find valid session by hash');
       throw error;
     }
   }
@@ -51,7 +50,7 @@ class SessionRepository {
       const result = await this.pool.query(query, [sessionId]);
       return result.rows[0] || null;
     } catch (error) {
-      logger.error({ err: error, sessionId }, 'Failed to find session by ID');
+      this.logger.error({ err: error, sessionId }, 'Failed to find session by ID');
       throw error;
     }
   }
@@ -70,10 +69,10 @@ class SessionRepository {
         throw new Error('Session not found, expired, or already revoked');
       }
 
-      logger.info({ sessionId }, 'Session rotated successfully');
+      this.logger.info({ sessionId }, 'Session rotated successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, sessionId }, 'Failed to rotate session');
+      this.logger.error({ err: error, sessionId }, 'Failed to rotate session');
       throw error;
     }
   }
@@ -92,10 +91,10 @@ class SessionRepository {
         throw new Error('Session not found or already revoked');
       }
 
-      logger.info({ sessionId }, 'Session revoked successfully');
+      this.logger.info({ sessionId }, 'Session revoked successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, sessionId }, 'Failed to revoke session');
+      this.logger.error({ err: error, sessionId }, 'Failed to revoke session');
       throw error;
     }
   }
@@ -110,13 +109,13 @@ class SessionRepository {
       `;
       const result = await this.pool.query(query, [userId]);
 
-      logger.info({
+      this.logger.info({
         userId,
         revokedCount: result.rows.length
       }, 'All user sessions revoked successfully');
       return result.rows;
     } catch (error) {
-      logger.error({ err: error, userId }, 'Failed to revoke all user sessions');
+      this.logger.error({ err: error, userId }, 'Failed to revoke all user sessions');
       throw error;
     }
   }
@@ -135,10 +134,10 @@ class SessionRepository {
         throw new Error('Session not found or already revoked');
       }
 
-      logger.info({ sessionId: result.rows[0].id }, 'Session revoked by hash successfully');
+      this.logger.info({ sessionId: result.rows[0].id }, 'Session revoked by hash successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error }, 'Failed to revoke session by hash');
+      this.logger.error({ err: error }, 'Failed to revoke session by hash');
       throw error;
     }
   }
@@ -151,12 +150,12 @@ class SessionRepository {
       `;
       const result = await this.pool.query(query);
 
-      logger.info({
+      this.logger.info({
         deletedCount: result.rowCount
       }, 'Expired sessions cleaned up successfully');
       return result.rowCount;
     } catch (error) {
-      logger.error({ err: error }, 'Failed to cleanup expired sessions');
+      this.logger.error({ err: error }, 'Failed to cleanup expired sessions');
       throw error;
     }
   }
@@ -173,7 +172,7 @@ class SessionRepository {
       const result = await this.pool.query(query, [userId, limit]);
       return result.rows;
     } catch (error) {
-      logger.error({ err: error, userId }, 'Failed to find active sessions for user');
+      this.logger.error({ err: error, userId }, 'Failed to find active sessions for user');
       throw error;
     }
   }

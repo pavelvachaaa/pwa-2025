@@ -1,8 +1,7 @@
-const logger = require('@utils/logger').child({ module: 'userRepository' });
-
 class UserRepository {
-  constructor(pool) {
+  constructor(pool, logger) {
     this.pool = pool;
+    this.logger = logger || require('@utils/logger').child({ module: 'userRepository' });
   }
 
   async findByEmail(email) {
@@ -11,7 +10,7 @@ class UserRepository {
       const result = await this.pool.query(query, [email.toLowerCase()]);
       return result.rows[0] || null;
     } catch (error) {
-      logger.error({ err: error, email }, 'Failed to find user by email');
+      this.logger.error({ err: error, email }, 'Failed to find user by email');
       throw error;
     }
   }
@@ -22,7 +21,7 @@ class UserRepository {
       const result = await this.pool.query(query, [id]);
       return result.rows[0] || null;
     } catch (error) {
-      logger.error({ err: error, id }, 'Failed to find user by id');
+      this.logger.error({ err: error, id }, 'Failed to find user by id');
       throw error;
     }
   }
@@ -37,10 +36,10 @@ class UserRepository {
       const values = [email.toLowerCase(), displayName, passwordHash, avatarUrl];
       const result = await this.pool.query(query, values);
 
-      logger.info({ userId: result.rows[0].id }, 'User created successfully');
+      this.logger.info({ userId: result.rows[0].id }, 'User created successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, email }, 'Failed to create user');
+      this.logger.error({ err: error, email }, 'Failed to create user');
       throw error;
     }
   }
@@ -59,10 +58,10 @@ class UserRepository {
         throw new Error('User not found or inactive');
       }
 
-      logger.info({ userId }, 'User password updated successfully');
+      this.logger.info({ userId }, 'User password updated successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, userId }, 'Failed to update user password');
+      this.logger.error({ err: error, userId }, 'Failed to update user password');
       throw error;
     }
   }
@@ -91,10 +90,10 @@ class UserRepository {
         throw new Error('User not found or inactive');
       }
 
-      logger.info({ userId }, 'User updated successfully');
+      this.logger.info({ userId }, 'User updated successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, userId }, 'Failed to update user');
+      this.logger.error({ err: error, userId }, 'Failed to update user');
       throw error;
     }
   }
@@ -113,17 +112,17 @@ class UserRepository {
         throw new Error('User not found');
       }
 
-      logger.info({ userId }, 'User deactivated successfully');
+      this.logger.info({ userId }, 'User deactivated successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, userId }, 'Failed to deactivate user');
+      this.logger.error({ err: error, userId }, 'Failed to deactivate user');
       throw error;
     }
   }
 
   async getAllUsers(currentUserId, limit = 20) {
     try {
-      logger.info({currentUserId, limit}, "Zde");
+      this.logger.info({currentUserId, limit}, "Zde");
       const query = `
         SELECT id, email, display_name, avatar_url
         FROM users
@@ -142,7 +141,7 @@ class UserRepository {
         avatar_url: row.avatar_url
       }));
     } catch (error) {
-      logger.error({ error: error.message, currentUserId }, 'Error getting all users');
+      this.logger.error({ error: error.message, currentUserId }, 'Error getting all users');
       throw error;
     }
   }
@@ -164,7 +163,7 @@ class UserRepository {
       const searchTerm = `%${query}%`;
       const result = await this.pool.query(searchQuery, [searchTerm, currentUserId, limit]);
 
-      logger.debug({ query, currentUserId, resultCount: result.rows.length }, 'User search completed');
+      this.logger.debug({ query, currentUserId, resultCount: result.rows.length }, 'User search completed');
 
       return result.rows.map(row => ({
         id: row.id,
@@ -173,7 +172,7 @@ class UserRepository {
         avatar_url: row.avatar_url
       }));
     } catch (error) {
-      logger.error({ err: error, query, currentUserId }, 'Failed to search users');
+      this.logger.error({ err: error, query, currentUserId }, 'Failed to search users');
       throw error;
     }
   }
@@ -191,7 +190,7 @@ class UserRepository {
 
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, userId, status }, 'Failed to update user presence');
+      this.logger.error({ err: error, userId, status }, 'Failed to update user presence');
       throw error;
     }
   }
@@ -207,7 +206,7 @@ class UserRepository {
 
       return result.rows;
     } catch (error) {
-      logger.error({ err: error, userIds }, 'Failed to get user presence');
+      this.logger.error({ err: error, userIds }, 'Failed to get user presence');
       throw error;
     }
   }

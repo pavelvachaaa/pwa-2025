@@ -1,8 +1,7 @@
-const logger = require('@utils/logger').child({ module: 'oauthRepository' });
-
 class OAuthRepository {
-  constructor(pool) {
+  constructor(pool, logger) {
     this.pool = pool;
+    this.logger = logger || require('@utils/logger').child({ module: 'oauthRepository' });
   }
 
   async findByProviderId(provider, providerUserId) {
@@ -16,7 +15,7 @@ class OAuthRepository {
       const result = await this.pool.query(query, [provider, providerUserId]);
       return result.rows[0] || null;
     } catch (error) {
-      logger.error({ err: error, provider, providerUserId }, 'Failed to find OAuth account by provider ID');
+      this.logger.error({ err: error, provider, providerUserId }, 'Failed to find OAuth account by provider ID');
       throw error;
     }
   }
@@ -34,7 +33,7 @@ class OAuthRepository {
       const result = await this.pool.query(query, params);
       return result.rows;
     } catch (error) {
-      logger.error({ err: error, userId, provider }, 'Failed to find OAuth accounts by user ID');
+      this.logger.error({ err: error, userId, provider }, 'Failed to find OAuth accounts by user ID');
       throw error;
     }
   }
@@ -49,14 +48,14 @@ class OAuthRepository {
       const values = [userId, provider, providerUserId];
       const result = await this.pool.query(query, values);
 
-      logger.info({
+      this.logger.info({
         oauthAccountId: result.rows[0].id,
         userId,
         provider
       }, 'OAuth account created successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, userId, provider }, 'Failed to create OAuth account');
+      this.logger.error({ err: error, userId, provider }, 'Failed to create OAuth account');
       throw error;
     }
   }
@@ -70,10 +69,10 @@ class OAuthRepository {
         throw new Error('OAuth account not found');
       }
 
-      logger.info({ oauthAccountId: id }, 'OAuth account deleted successfully');
+      this.logger.info({ oauthAccountId: id }, 'OAuth account deleted successfully');
       return result.rows[0];
     } catch (error) {
-      logger.error({ err: error, id }, 'Failed to delete OAuth account');
+      this.logger.error({ err: error, id }, 'Failed to delete OAuth account');
       throw error;
     }
   }
@@ -83,14 +82,14 @@ class OAuthRepository {
       const query = 'DELETE FROM oauth_accounts WHERE user_id = $1 AND provider = $2 RETURNING *';
       const result = await this.pool.query(query, [userId, provider]);
 
-      logger.info({
+      this.logger.info({
         userId,
         provider,
         deletedCount: result.rows.length
       }, 'OAuth accounts deleted successfully');
       return result.rows;
     } catch (error) {
-      logger.error({ err: error, userId, provider }, 'Failed to delete OAuth accounts');
+      this.logger.error({ err: error, userId, provider }, 'Failed to delete OAuth accounts');
       throw error;
     }
   }
