@@ -1,31 +1,36 @@
-const chatRepository = require('@repositories/chat.repository');
-const userRepository = require('@repositories/user.repository');
-const logger = require('@utils/logger');
+const logger = require('@utils/logger').child({ module: 'chat-service' });
+const { ValidationError, NotFoundError, AuthorizationError } = require('@utils/errors');
 
 class ChatService {
+  constructor(chatRepository, userRepository) {
+    this.chatRepo = chatRepository;
+    this.userRepo = userRepository;
+    this.idempotencyCache = new Map();
+  }
+
   async createConversation(currentUserId, targetUserId) {
     try {
       if (currentUserId === targetUserId) {
-        throw new Error('Cannot create conversation with yourself');
+        throw new ValidationError('Cannot create conversation with yourself');
       }
 
-      const existing = await chatRepository.findConversationByParticipants(currentUserId, targetUserId);
+      const existing = await this.chatRepo.findConversationByParticipants(currentUserId, targetUserId);
       if (existing) {
-        return { conversation: await chatRepository.getConversationById(existing.id, currentUserId) };
+        return { conversation: await this.chatRepo.getConversationById(existing.id, currentUserId) };
       }
 
-      const targetUser = await userRepository.findById(targetUserId);
+      const targetUser = await this.userRepo.findById(targetUserId);
       if (!targetUser) {
-        throw new Error('Target user not found');
+        throw new NotFoundError('Target user');
       }
 
-      const conversation = await chatRepository.createConversation({
+      const conversation = await this.chatRepo.createConversation({
         userAId: currentUserId,
         userBId: targetUserId,
         createdBy: currentUserId
       });
 
-      return { conversation: await chatRepository.getConversationById(conversation.id, currentUserId) };
+      return { conversation: await this.chatRepo.getConversationById(conversation.id, currentUserId) };
     } catch (error) {
       logger.error({ error: error.message, currentUserId, targetUserId }, 'Error creating conversation');
       throw error;
@@ -34,7 +39,7 @@ class ChatService {
 
   async getUserConversations(userId) {
     try {
-      const conversations = await chatRepository.getConversationsForUser(userId);
+      const conversations = await this.chatRepo.getConversationsForUser(userId);
       return { conversations };
     } catch (error) {
       logger.error({ error: error.message, userId }, 'Error getting user conversations');
@@ -44,7 +49,11 @@ class ChatService {
 
   async getConversationById(conversationId, userId) {
     try {
-      return await chatRepository.getConversationById(conversationId, userId);
+      const conversation = await this.chatRepo.getConversationById(conversationId, userId);
+      if (!conversation) {
+        throw new NotFoundError('Conversation');
+      }
+      return conversation;
     } catch (error) {
       logger.error({ error: error.message, conversationId, userId }, 'Error getting conversation by ID');
       throw error;
@@ -53,7 +62,7 @@ class ChatService {
 
   async getConversationMessages(conversationId, userId, { limit = 50, offset = 0 } = {}) {
     try {
-      const messages = await chatRepository.getMessagesForConversation(conversationId, userId, limit, offset);
+      const messages = await this.chatRepo.getMessagesForConversation(conversationId, userId, limit, offset);
       return { messages };
     } catch (error) {
       logger.error({ error: error.message, conversationId, userId }, 'Error getting conversation messages');
@@ -61,13 +70,29 @@ class ChatService {
     }
   }
 
-  async sendMessage(userId, { conversationId, content, messageType = 'text', replyTo = null }) {
+  async sendMessage(userId, { conversationId, content, messageType = 'text', replyTo = null, idempotencyKey = null }) {
     try {
       if (!content?.trim()) {
-        throw new Error('Message content is required');
+        throw new ValidationError('Message content is required');
       }
 
-      const message = await chatRepository.createMessage({
+      // Check idempotency if enabled
+      const config = require('@/config');
+      if (config.IDEMPOTENCY_ENABLED && idempotencyKey) {
+        const cached = this.idempotencyCache.get(idempotencyKey);
+        if (cached) {
+          logger.debug({ idempotencyKey, userId }, 'Returning cached message (idempotency)');
+          return cached;
+        }
+      }
+
+      // Verify user is participant
+      const isParticipant = await this.chatRepo.isUserParticipant(conversationId, userId);
+      if (!isParticipant) {
+        throw new AuthorizationError('Not a participant in this conversation');
+      }
+
+      const message = await this.chatRepo.createMessage({
         conversationId,
         senderId: userId,
         content: content.trim(),
@@ -75,7 +100,15 @@ class ChatService {
         replyTo
       });
 
-      return { message: await this.getBasicMessageInfo(message) };
+      const result = { message: await this.getBasicMessageInfo(message) };
+
+      // Cache result if idempotency enabled
+      if (config.IDEMPOTENCY_ENABLED && idempotencyKey) {
+        this.idempotencyCache.set(idempotencyKey, result);
+        setTimeout(() => this.idempotencyCache.delete(idempotencyKey), 24 * 60 * 60 * 1000);
+      }
+
+      return result;
     } catch (error) {
       logger.error({ error: error.message, userId, conversationId, content }, 'Error sending message');
       throw error;
@@ -83,17 +116,16 @@ class ChatService {
   }
 
   async getBasicMessageInfo(message) {
-    const sender = await chatRepository.getUserById(message.sender_id);
+    const sender = await this.chatRepo.getUserById(message.sender_id);
     return {
       ...message,
       sender_name: sender?.display_name || 'Unknown User'
     };
   }
 
-  // We are getting it from partial key.. 
   async getMessageById(messageId, userId) {
     try {
-      return await chatRepository.getMessageById(messageId, userId);
+      return await this.chatRepo.getMessageById(messageId, userId);
     } catch (error) {
       logger.error({ error: error.message, messageId, userId }, 'Error getting message');
       throw error;
@@ -103,12 +135,12 @@ class ChatService {
   async editMessage(messageId, userId, content) {
     try {
       if (!content?.trim()) {
-        throw new Error('Message content is required');
+        throw new ValidationError('Message content is required');
       }
 
-      const message = await chatRepository.updateMessage(messageId, userId, content.trim());
+      const message = await this.chatRepo.updateMessage(messageId, userId, content.trim());
       if (!message) {
-        throw new Error('Message not found or user is not the sender');
+        throw new NotFoundError('Message not found or you are not the sender');
       }
 
       return { message };
@@ -120,9 +152,9 @@ class ChatService {
 
   async deleteMessage(messageId, userId) {
     try {
-      const message = await chatRepository.deleteMessage(messageId, userId);
+      const message = await this.chatRepo.deleteMessage(messageId, userId);
       if (!message) {
-        throw new Error('Message not found or user is not the sender');
+        throw new NotFoundError('Message not found or you are not the sender');
       }
 
       return { success: true };
@@ -135,10 +167,10 @@ class ChatService {
   async addReaction(messageId, userId, emoji) {
     try {
       if (!emoji?.trim()) {
-        throw new Error('Emoji is required');
+        throw new ValidationError('Emoji is required');
       }
 
-      await chatRepository.addReaction(messageId, userId, emoji.trim());
+      await this.chatRepo.addReaction(messageId, userId, emoji.trim());
       return { success: true };
     } catch (error) {
       logger.error({ error: error.message, messageId, userId, emoji }, 'Error adding reaction');
@@ -149,10 +181,10 @@ class ChatService {
   async removeReaction(messageId, userId, emoji) {
     try {
       if (!emoji?.trim()) {
-        throw new Error('Emoji is required');
+        throw new ValidationError('Emoji is required');
       }
 
-      await chatRepository.removeReaction(messageId, userId, emoji.trim());
+      await this.chatRepo.removeReaction(messageId, userId, emoji.trim());
       return { success: true };
     } catch (error) {
       logger.error({ error: error.message, messageId, userId, emoji }, 'Error removing reaction');
@@ -162,14 +194,13 @@ class ChatService {
 
   async markConversationAsRead(conversationId, userId) {
     try {
-      await chatRepository.markConversationAsRead(conversationId, userId);
+      await this.chatRepo.markConversationAsRead(conversationId, userId);
       return { success: true };
     } catch (error) {
       logger.error({ error: error.message, conversationId, userId }, 'Error marking conversation as read');
       throw error;
     }
   }
-
 }
 
-module.exports = new ChatService();
+module.exports = ChatService;

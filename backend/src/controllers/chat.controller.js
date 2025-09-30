@@ -1,34 +1,32 @@
-const chatService = require('@services/chat.service');
-const logger = require('@utils/logger');
+const logger = require('@utils/logger').child({ module: 'chat-controller' });
 
 class ChatController {
-  // Get user's conversations
-  async getConversations(req, res) {
+  constructor(chatService, websocketGateway) {
+    this.chatService = chatService;
+    this.wsGateway = websocketGateway;
+  }
+
+  async getConversations(req, res, next) {
     try {
       const userId = req.user.id;
-      const result = await chatService.getUserConversations(userId);
+      const result = await this.chatService.getUserConversations(userId);
 
       res.json({
         success: true,
         data: result.conversations
       });
     } catch (error) {
-      logger.error({ error: error.message, userId: req.user?.userId }, 'Error getting conversations');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Get messages for a conversation
-  async getMessages(req, res) {
+  async getMessages(req, res, next) {
     try {
       const userId = req.user.id;
       const { conversationId } = req.params;
       const { limit = 50, offset = 0 } = req.query;
 
-      const result = await chatService.getConversationMessages(
+      const result = await this.chatService.getConversationMessages(
         conversationId,
         userId,
         { limit: parseInt(limit), offset: parseInt(offset) }
@@ -39,16 +37,11 @@ class ChatController {
         data: result.messages
       });
     } catch (error) {
-      logger.error({ error: error.message, conversationId: req.params.conversationId, userId: req.user?.userId }, 'Error getting messages');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Create conversation (DM only)
-  async createConversation(req, res) {
+  async createConversation(req, res, next) {
     try {
       const userId = req.user.id;
       const { targetUserId } = req.body;
@@ -60,19 +53,18 @@ class ChatController {
         });
       }
 
-      const result = await chatService.createConversation(userId, targetUserId);
+      const result = await this.chatService.createConversation(userId, targetUserId);
 
-      const wsHandler = require('../socket/websocket.handler');
-      if (wsHandler.io) {
-        wsHandler.sendToUser(userId, 'conversation:created', {
+      if (this.wsGateway) {
+        this.wsGateway.sendToUser(userId, 'conversation:created', {
           conversation: result.conversation,
           isInitiator: true
         });
-        wsHandler.sendToUser(targetUserId, 'conversation:created', {
+        this.wsGateway.sendToUser(targetUserId, 'conversation:created', {
           conversation: result.conversation,
           isInitiator: false
         });
-        
+
         logger.debug({ userId, targetUserId, conversationId: result.conversation.id }, 'Conversation created notification sent via WebSocket');
       }
 
@@ -81,19 +73,15 @@ class ChatController {
         data: result.conversation
       });
     } catch (error) {
-      logger.error({ error: error.message, userId: req.user?.userId, targetUserId: req.body?.targetUserId }, 'Error creating conversation');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Send message (HTTP endpoint - WebSocket is preferred for real-time)
-  async sendMessage(req, res) {
+  async sendMessage(req, res, next) {
     try {
       const userId = req.user.id;
       const { conversationId, content, messageType, replyTo } = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
 
       if (!conversationId || !content || !content.trim()) {
         return res.status(400).json({
@@ -102,11 +90,12 @@ class ChatController {
         });
       }
 
-      const result = await chatService.sendMessage(userId, {
+      const result = await this.chatService.sendMessage(userId, {
         conversationId,
         content,
         messageType,
-        replyTo
+        replyTo,
+        idempotencyKey
       });
 
       res.json({
@@ -114,16 +103,11 @@ class ChatController {
         data: result.message
       });
     } catch (error) {
-      logger.error({ error: error.message, userId: req.user?.userId, conversationId: req.body?.conversationId }, 'Error sending message');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Edit message
-  async editMessage(req, res) {
+  async editMessage(req, res, next) {
     try {
       const userId = req.user.id;
       const { messageId } = req.params;
@@ -136,44 +120,34 @@ class ChatController {
         });
       }
 
-      const result = await chatService.editMessage(messageId, userId, content);
+      const result = await this.chatService.editMessage(messageId, userId, content);
 
       res.json({
         success: true,
         data: result.message
       });
     } catch (error) {
-      logger.error({ error: error.message, messageId: req.params.messageId, userId: req.user?.userId }, 'Error editing message');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Delete message
-  async deleteMessage(req, res) {
+  async deleteMessage(req, res, next) {
     try {
       const userId = req.user.id;
       const { messageId } = req.params;
 
-      await chatService.deleteMessage(messageId, userId);
+      await this.chatService.deleteMessage(messageId, userId);
 
       res.json({
         success: true,
         message: 'Message deleted successfully'
       });
     } catch (error) {
-      logger.error({ error: error.message, messageId: req.params.messageId, userId: req.user?.userId }, 'Error deleting message');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Add reaction to message
-  async addReaction(req, res) {
+  async addReaction(req, res, next) {
     try {
       const userId = req.user.id;
       const { messageId } = req.params;
@@ -186,23 +160,18 @@ class ChatController {
         });
       }
 
-      await chatService.addReaction(messageId, userId, emoji);
+      await this.chatService.addReaction(messageId, userId, emoji);
 
       res.json({
         success: true,
         message: 'Reaction added successfully'
       });
     } catch (error) {
-      logger.error({ error: error.message, messageId: req.params.messageId, userId: req.user?.userId }, 'Error adding reaction');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Remove reaction from message
-  async removeReaction(req, res) {
+  async removeReaction(req, res, next) {
     try {
       const userId = req.user.id;
       const { messageId } = req.params;
@@ -215,45 +184,32 @@ class ChatController {
         });
       }
 
-      await chatService.removeReaction(messageId, userId, emoji);
+      await this.chatService.removeReaction(messageId, userId, emoji);
 
       res.json({
         success: true,
         message: 'Reaction removed successfully'
       });
     } catch (error) {
-      logger.error({ error: error.message, messageId: req.params.messageId, userId: req.user?.userId }, 'Error removing reaction');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
 
-  // Mark conversation as read
-  async markAsRead(req, res) {
+  async markAsRead(req, res, next) {
     try {
       const userId = req.user.id;
       const { conversationId } = req.params;
 
-      await chatService.markConversationAsRead(conversationId, userId);
+      await this.chatService.markConversationAsRead(conversationId, userId);
 
       res.json({
         success: true,
         message: 'Conversation marked as read'
       });
     } catch (error) {
-      logger.error({ error: error.message, conversationId: req.params.conversationId, userId: req.user?.userId }, 'Error marking conversation as read');
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
     }
   }
-
-
-
-
 }
 
-module.exports = new ChatController();
+module.exports = ChatController;

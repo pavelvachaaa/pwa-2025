@@ -1,28 +1,25 @@
 const express = require('express');
-const chatController = require('@controllers/chat.controller');
 const { authMiddleware, requireActiveUser } = require('@middlewares/auth.middleware');
+const container = require('@/di/container');
 
 const router = express.Router();
 
-// Apply auth middleware to all chat routes
+const chatController = container.resolve('chatController');
+
 router.use(authMiddleware);
 router.use(requireActiveUser);
 
-// Conversations (DM only)
-router.get('/conversations', chatController.getConversations);
-router.post('/conversations', chatController.createConversation);
+router.get('/conversations', (req, res, next) => chatController.getConversations(req, res, next));
+router.post('/conversations', (req, res, next) => chatController.createConversation(req, res, next));
 
-// Messages
-router.get('/conversations/:conversationId/messages', chatController.getMessages);
-router.post('/messages', chatController.sendMessage);
-router.put('/messages/:messageId', chatController.editMessage);
-router.delete('/messages/:messageId', chatController.deleteMessage);
+router.get('/conversations/:conversationId/messages', (req, res, next) => chatController.getMessages(req, res, next));
+router.post('/messages', (req, res, next) => chatController.sendMessage(req, res, next));
+router.put('/messages/:messageId', (req, res, next) => chatController.editMessage(req, res, next));
+router.delete('/messages/:messageId', (req, res, next) => chatController.deleteMessage(req, res, next));
 
-// Message interactions
-router.post('/messages/:messageId/reactions', chatController.addReaction);
-router.delete('/messages/:messageId/reactions', chatController.removeReaction);
+router.post('/messages/:messageId/reactions', (req, res, next) => chatController.addReaction(req, res, next));
+router.delete('/messages/:messageId/reactions', (req, res, next) => chatController.removeReaction(req, res, next));
 
-// Read status
-router.post('/conversations/:conversationId/read', chatController.markAsRead);
+router.post('/conversations/:conversationId/read', (req, res, next) => chatController.markAsRead(req, res, next));
 
 module.exports = router;

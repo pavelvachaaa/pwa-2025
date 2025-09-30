@@ -1,9 +1,12 @@
-const pool = require('@/database/config');
 const logger = require('@utils/logger');
 
 class ChatRepository {
+  constructor(pool) {
+    this.pool = pool;
+  }
+
   async createConversation({ userAId, userBId, createdBy, avatarUrl = null }) {
-    const result = await pool.query(
+    const result = await this.pool.query(
       `INSERT INTO conversations (user_a_id, user_b_id, created_by, avatar_url)
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4)
        RETURNING *`,
@@ -14,7 +17,7 @@ class ChatRepository {
   }
 
   async getConversationsForUser(userId) {
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT
         c.*,
         -- Get the other participant info (not the current user)
@@ -67,7 +70,7 @@ class ChatRepository {
   async getConversationById(conversationId, userId) {
     logger.debug({ conversationId, userId }, 'Repository: Querying conversation by ID');
 
-    const participantCheck = await pool.query(`
+    const participantCheck = await this.pool.query(`
       SELECT c.*, user_a.display_name as user_a_name, user_b.display_name as user_b_name
       FROM conversations c
       LEFT JOIN users user_a ON c.user_a_id = user_a.id
@@ -81,7 +84,7 @@ class ChatRepository {
       return null;
     }
 
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT
         c.*,
         -- Get both participants info
@@ -134,7 +137,7 @@ class ChatRepository {
 
   async findConversationByParticipants(userId1, userId2) {
     // Use the canonical ordering (conv_a, conv_b) to find conversation
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT c.*
       FROM conversations c
       WHERE c.conv_a = LEAST($1::uuid, $2::uuid) AND c.conv_b = GREATEST($1::uuid, $2::uuid)
@@ -144,7 +147,7 @@ class ChatRepository {
   }
 
   async isUserParticipant(conversationId, userId) {
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT 1 FROM conversations
       WHERE id = $1::uuid
       AND (user_a_id = $2::uuid OR user_b_id = $2::uuid)
@@ -154,7 +157,7 @@ class ChatRepository {
   }
 
   async getUserById(userId) {
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT id, display_name, email, avatar_url
       FROM users
       WHERE id = $1::uuid AND is_active = true
@@ -165,7 +168,7 @@ class ChatRepository {
 
   // Messages
   async createMessage({ conversationId, senderId, content, messageType = 'text', replyTo = null }) {
-    const result = await pool.query(
+    const result = await this.pool.query(
       `INSERT INTO messages (conversation_id, sender_id, content, message_type, reply_to)
        VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid)
        RETURNING *`,
@@ -177,7 +180,7 @@ class ChatRepository {
 
   async getMessagesForConversation(conversationId, userId, limit = 10, offset = 0) {
     // First verify user is participant (check if user is either user_a or user_b)
-    const participantCheck = await pool.query(
+    const participantCheck = await this.pool.query(
       'SELECT 1 FROM conversations WHERE id = $1::uuid AND (user_a_id = $2::uuid OR user_b_id = $2::uuid)',
       [conversationId, userId]
     );
@@ -186,7 +189,7 @@ class ChatRepository {
       throw new Error('User is not a participant in this conversation');
     }
 
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT
         m.*,
         sender.display_name as sender_name,
@@ -225,7 +228,7 @@ class ChatRepository {
   }
 
   async getMessageById(messageId, userId) {
-    const result = await pool.query(`
+    const result = await this.pool.query(`
       SELECT m.*
       FROM messages m
       JOIN conversations c ON m.conversation_id = c.id
@@ -237,7 +240,7 @@ class ChatRepository {
   }
 
   async updateMessage(messageId, userId, content) {
-    const result = await pool.query(
+    const result = await this.pool.query(
       `UPDATE messages
        SET content = $3, is_edited = true, edited_at = NOW()
        WHERE id = $1 AND sender_id = $2
@@ -249,7 +252,7 @@ class ChatRepository {
   }
 
   async deleteMessage(messageId, userId) {
-    const result = await pool.query(
+    const result = await this.pool.query(
       'DELETE FROM messages WHERE id = $1 AND sender_id = $2 RETURNING *',
       [messageId, userId]
     );
@@ -260,7 +263,7 @@ class ChatRepository {
   // Message reactions
   async addReaction(messageId, userId, emoji) {
     try {
-      const result = await pool.query(
+      const result = await this.pool.query(
         `INSERT INTO message_reactions (message_id, user_id, emoji)
          VALUES ($1, $2, $3)
          ON CONFLICT (message_id, user_id, emoji) DO NOTHING
@@ -278,7 +281,7 @@ class ChatRepository {
   }
 
   async removeReaction(messageId, userId, emoji) {
-    const result = await pool.query(
+    const result = await this.pool.query(
       'DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3 RETURNING *',
       [messageId, userId, emoji]
     );
@@ -289,7 +292,7 @@ class ChatRepository {
   // Message read status
   async markMessageAsRead(messageId, userId) {
     try {
-      const result = await pool.query(
+      const result = await this.pool.query(
         `INSERT INTO message_read_status (message_id, user_id)
          VALUES ($1, $2)
          ON CONFLICT (message_id, user_id) DO NOTHING
@@ -307,7 +310,7 @@ class ChatRepository {
   }
 
   async markConversationAsRead(conversationId, userId) {
-    await pool.query(`
+    await this.pool.query(`
       INSERT INTO message_read_status (message_id, user_id)
       SELECT m.id, $2
       FROM messages m
@@ -317,31 +320,6 @@ class ChatRepository {
     `, [conversationId, userId]);
   }
 
-  // User presence
-  async updateUserPresence(userId, status) {
-    const result = await pool.query(
-      `INSERT INTO user_presence (user_id, status, last_seen, updated_at)
-       VALUES ($1, $2, NOW(), NOW())
-       ON CONFLICT (user_id) DO UPDATE SET
-       status = $2, last_seen = NOW(), updated_at = NOW()
-       RETURNING *`,
-      [userId, status]
-    );
-
-    return result.rows[0];
-  }
-
-  async getUserPresence(userIds) {
-    if (!userIds.length) return [];
-
-    const result = await pool.query(
-      'SELECT user_id, status, last_seen FROM user_presence WHERE user_id = ANY($1)',
-      [userIds]
-    );
-
-    return result.rows;
-  }
-
 }
 
-module.exports = new ChatRepository();
+module.exports = ChatRepository;

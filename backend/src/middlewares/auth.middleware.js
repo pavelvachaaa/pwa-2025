@@ -1,5 +1,5 @@
 const { verifyToken } = require('@utils/jwt/jwt');
-const { user: userRepo } = require('@repositories/auth.repository');
+const container = require('@/di/container');
 const logger = require('@utils/logger').child({ module: 'authMiddleware' });
 
 function authMiddleware(req, res, next) {
@@ -71,6 +71,7 @@ async function requireActiveUser(req, res, next) {
       });
     }
 
+    const userRepo = container.resolve('userRepository');
     const user = await userRepo.findById(req.user.id);
 
     if (!user) {

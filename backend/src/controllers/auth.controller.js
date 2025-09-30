@@ -1,10 +1,13 @@
-const authService = require('@services/auth.service');
 const { validate } = require('@middlewares/validate');
 const schemas = require('@/schemas/auth.schemas');
 const logger = require('@utils/logger').child({ module: 'authController' });
 const { verifyToken } = require('@utils/jwt/jwt');
 
 class AuthController {
+  constructor(authService) {
+    this.authService = authService;
+  }
+
   _setCookies(res, accessToken, refreshToken) {
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -49,7 +52,7 @@ class AuthController {
   }
   async register(req, res, next) {
     try {
-      const result = await authService.register(req.body, req);
+      const result = await this.authService.register(req.body, req);
 
       // Set HTTP-only cookies
       this._setCookies(res, result.accessToken, result.refreshToken);
@@ -115,7 +118,7 @@ class AuthController {
 
   async login(req, res, next) {
     try {
-      const result = await authService.login(req.body, req);
+      const result = await this.authService.login(req.body, req);
 
       // Set HTTP-only cookies
       this._setCookies(res, result.accessToken, result.refreshToken);
@@ -142,7 +145,7 @@ class AuthController {
 
   async googleStart(req, res, next) {
     try {
-      const result = await authService.googleStart();
+      const result = await this.authService.googleStart();
 
       res.status(200).json({
         success: true,
@@ -164,7 +167,7 @@ class AuthController {
 
   async googleCallback(req, res, next) {
     try {
-      const result = await authService.loginWithGoogle(req.body, req);
+      const result = await this.authService.loginWithGoogle(req.body, req);
 
       // Set HTTP-only cookies
       this._setCookies(res, result.accessToken, result.refreshToken);
@@ -191,7 +194,7 @@ class AuthController {
 
   async googleIdToken(req, res, next) {
     try {
-      const result = await authService.loginWithGoogleIdToken(req.body, req);
+      const result = await this.authService.loginWithGoogleIdToken(req.body, req);
 
       // Set HTTP-only cookies
       this._setCookies(res, result.accessToken, result.refreshToken);
@@ -218,7 +221,7 @@ class AuthController {
 
   async refresh(req, res, next) {
     try {
-      const result = await authService.refresh(req.cookies, req);
+      const result = await this.authService.refresh(req.cookies, req);
 
       // Set new HTTP-only cookies
       this._setCookies(res, result.accessToken, result.refreshToken);
@@ -245,7 +248,7 @@ class AuthController {
 
   async logout(req, res, next) {
     try {
-      await authService.logout(req);
+      await this.authService.logout(req);
 
       // Clear cookies
       this._clearCookies(res);
@@ -267,7 +270,7 @@ class AuthController {
 
   async logoutAll(req, res, next) {
     try {
-      await authService.logoutAll(req);
+      await this.authService.logoutAll(req);
 
       // Clear cookies
       this._clearCookies(res);
@@ -289,7 +292,7 @@ class AuthController {
 
   async me(req, res, next) {
     try {
-      const result = await authService.me(req);
+      const result = await this.authService.me(req);
 
       res.status(200).json({
         success: true,
@@ -310,17 +313,4 @@ class AuthController {
   }
 }
 
-const authController = new AuthController();
-
-module.exports = {
-  register: [validate(schemas.register), authController.register.bind(authController)],
-  login: [validate(schemas.login), authController.login.bind(authController)],
-  googleStart: authController.googleStart.bind(authController),
-  googleCallback: [validate(schemas.googleCallback), authController.googleCallback.bind(authController)],
-  googleIdToken: [validate(schemas.googleIdToken), authController.googleIdToken.bind(authController)],
-  refresh: [validate(schemas.refreshToken), authController.refresh.bind(authController)],
-  logout: authController.logout.bind(authController),
-  logoutAll: authController.logoutAll.bind(authController),
-  me: authController.me.bind(authController),
-  getToken: authController.getToken.bind(authController)
-};
+module.exports = AuthController;

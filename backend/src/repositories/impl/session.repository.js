@@ -1,7 +1,10 @@
-const pool = require('@/database/config');
 const logger = require('@utils/logger').child({ module: 'sessionRepository' });
 
 class SessionRepository {
+  constructor(pool) {
+    this.pool = pool;
+  }
+
   async create({ userId, refreshTokenHash, userAgent, ipAddress, expiresAt }) {
     try {
       const query = `
@@ -10,7 +13,7 @@ class SessionRepository {
         RETURNING *
       `;
       const values = [userId, refreshTokenHash, userAgent, ipAddress, expiresAt];
-      const result = await pool.query(query, values);
+      const result = await this.pool.query(query, values);
 
       logger.info({
         sessionId: result.rows[0].id,
@@ -34,7 +37,7 @@ class SessionRepository {
           AND s.revoked_at IS NULL
           AND u.is_active = true
       `;
-      const result = await pool.query(query, [refreshTokenHash]);
+      const result = await this.pool.query(query, [refreshTokenHash]);
       return result.rows[0] || null;
     } catch (error) {
       logger.error({ err: error }, 'Failed to find valid session by hash');
@@ -45,7 +48,7 @@ class SessionRepository {
   async findById(sessionId) {
     try {
       const query = 'SELECT * FROM user_sessions WHERE id = $1';
-      const result = await pool.query(query, [sessionId]);
+      const result = await this.pool.query(query, [sessionId]);
       return result.rows[0] || null;
     } catch (error) {
       logger.error({ err: error, sessionId }, 'Failed to find session by ID');
@@ -61,7 +64,7 @@ class SessionRepository {
         WHERE id = $3 AND expires_at > NOW() AND revoked_at IS NULL
         RETURNING *
       `;
-      const result = await pool.query(query, [newRefreshTokenHash, newExpiresAt, sessionId]);
+      const result = await this.pool.query(query, [newRefreshTokenHash, newExpiresAt, sessionId]);
 
       if (result.rows.length === 0) {
         throw new Error('Session not found, expired, or already revoked');
@@ -83,7 +86,7 @@ class SessionRepository {
         WHERE id = $1 AND revoked_at IS NULL
         RETURNING *
       `;
-      const result = await pool.query(query, [sessionId]);
+      const result = await this.pool.query(query, [sessionId]);
 
       if (result.rows.length === 0) {
         throw new Error('Session not found or already revoked');
@@ -105,7 +108,7 @@ class SessionRepository {
         WHERE user_id = $1 AND revoked_at IS NULL
         RETURNING *
       `;
-      const result = await pool.query(query, [userId]);
+      const result = await this.pool.query(query, [userId]);
 
       logger.info({
         userId,
@@ -126,7 +129,7 @@ class SessionRepository {
         WHERE refresh_token_hash = $1 AND revoked_at IS NULL
         RETURNING *
       `;
-      const result = await pool.query(query, [refreshTokenHash]);
+      const result = await this.pool.query(query, [refreshTokenHash]);
 
       if (result.rows.length === 0) {
         throw new Error('Session not found or already revoked');
@@ -146,7 +149,7 @@ class SessionRepository {
         DELETE FROM user_sessions
         WHERE expires_at <= NOW() - INTERVAL '7 days'
       `;
-      const result = await pool.query(query);
+      const result = await this.pool.query(query);
 
       logger.info({
         deletedCount: result.rowCount
@@ -167,7 +170,7 @@ class SessionRepository {
         ORDER BY created_at DESC
         LIMIT $2
       `;
-      const result = await pool.query(query, [userId, limit]);
+      const result = await this.pool.query(query, [userId, limit]);
       return result.rows;
     } catch (error) {
       logger.error({ err: error, userId }, 'Failed to find active sessions for user');
@@ -176,4 +179,4 @@ class SessionRepository {
   }
 }
 
-module.exports = new SessionRepository();
+module.exports = SessionRepository;

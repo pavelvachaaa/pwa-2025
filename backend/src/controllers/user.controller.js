@@ -1,14 +1,16 @@
-const userService = require('@services/user.service');
 const logger = require('@utils/logger');
 
 class UserController {
+    constructor(userService) {
+        this.userService = userService;
+    }
 
     async getAllUsers(req, res) {
         try {
             const userId = req.user.id;
             const { limit = 20 } = req.query;
 
-            const result = await userService.getAllUsers(userId, parseInt(limit));
+            const result = await this.userService.getAllUsers(userId, parseInt(limit));
 
             res.json({
                 success: true,
@@ -36,7 +38,7 @@ class UserController {
                 });
             }
 
-            const result = await userService.searchUsers(query, userId, parseInt(limit));
+            const result = await this.userService.searchUsers(query, userId, parseInt(limit));
 
             res.json({
                 success: true,
@@ -64,7 +66,7 @@ class UserController {
             }
 
             const userIdArray = Array.isArray(userIds) ? userIds : userIds.split(',');
-            const result = await userService.getUsersPresence(userIdArray);
+            const result = await this.userService.getUsersPresence(userIdArray);
 
             res.json({
                 success: true,
@@ -81,4 +83,4 @@ class UserController {
 
 }
 
-module.exports = new UserController();
+module.exports = UserController;

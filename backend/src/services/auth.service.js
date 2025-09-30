@@ -1,21 +1,27 @@
-const { user: userRepo, oauth: oauthRepo, session: sessionRepo } = require('@repositories/auth.repository');
 const { hashPassword, verifyPassword, generateSecureToken, hashToken, normalizeEmail } = require('@utils/crypto');
 const { signAccessToken, getRefreshTokenExpiry } = require('@utils/jwt/jwt');
 const { generateGoogleAuthUrl, verifyGoogleToken, verifyGoogleIdToken, isConfigured: isGoogleConfigured } = require('@utils/google-oauth');
 const logger = require('@utils/logger').child({ module: 'authService' });
+const { ValidationError, NotFoundError } = require('@utils/errors');
 
 class AuthService {
+  constructor(userRepository, oauthRepository, sessionRepository) {
+    this.userRepo = userRepository;
+    this.oauthRepo = oauthRepository;
+    this.sessionRepo = sessionRepository;
+  }
+
   async register({ email, password, displayName }, context) {
     try {
       const normalizedEmail = normalizeEmail(email);
 
-      const existingUser = await userRepo.findByEmail(normalizedEmail);
+      const existingUser = await this.userRepo.findByEmail(normalizedEmail);
       if (existingUser) {
         throw new Error('User with this email already exists');
       }
 
       const passwordHash = await hashPassword(password);
-      const user = await userRepo.create({
+      const user = await this.userRepo.create({
         email: normalizedEmail,
         displayName,
         passwordHash,
@@ -40,7 +46,7 @@ class AuthService {
   async login({ email, password }, context) {
     try {
       const normalizedEmail = normalizeEmail(email);
-      const user = await userRepo.findByEmail(normalizedEmail);
+      const user = await this.userRepo.findByEmail(normalizedEmail);
 
       if (!user || !user.password_hash) {
         throw new Error('Invalid email or password');
@@ -97,14 +103,14 @@ class AuthService {
       let user;
       let isNewUser = false;
 
-      const existingOAuth = await oauthRepo.findByProviderId('google', googleProfile.sub);
+      const existingOAuth = await this.oauthRepo.findByProviderId('google', googleProfile.sub);
       if (existingOAuth) {
         user = existingOAuth;
         logger.info({ userId: user.id }, 'Existing Google user logged in');
       } else {
-        const existingUser = await userRepo.findByEmail(normalizedEmail);
+        const existingUser = await this.userRepo.findByEmail(normalizedEmail);
         if (existingUser) {
-          await oauthRepo.create({
+          await this.oauthRepo.create({
             userId: existingUser.id,
             provider: 'google',
             providerUserId: googleProfile.sub
@@ -112,14 +118,14 @@ class AuthService {
           user = existingUser;
           logger.info({ userId: user.id }, 'Google account linked to existing user');
         } else {
-          user = await userRepo.create({
+          user = await this.userRepo.create({
             email: normalizedEmail,
             displayName: googleProfile.name,
             passwordHash: null,
             avatarUrl: googleProfile.picture
           });
 
-          await oauthRepo.create({
+          await this.oauthRepo.create({
             userId: user.id,
             provider: 'google',
             providerUserId: googleProfile.sub
@@ -161,14 +167,14 @@ class AuthService {
       let user;
       let isNewUser = false;
 
-      const existingOAuth = await oauthRepo.findByProviderId('google', googleProfile.sub);
+      const existingOAuth = await this.oauthRepo.findByProviderId('google', googleProfile.sub);
       if (existingOAuth) {
         user = existingOAuth;
         logger.info({ userId: user.id }, 'Existing Google user logged in via ID token');
       } else {
-        const existingUser = await userRepo.findByEmail(normalizedEmail);
+        const existingUser = await this.userRepo.findByEmail(normalizedEmail);
         if (existingUser) {
-          await oauthRepo.create({
+          await this.oauthRepo.create({
             userId: existingUser.id,
             provider: 'google',
             providerUserId: googleProfile.sub
@@ -176,14 +182,14 @@ class AuthService {
           user = existingUser;
           logger.info({ userId: user.id }, 'Google account linked to existing user via ID token');
         } else {
-          user = await userRepo.create({
+          user = await this.userRepo.create({
             email: normalizedEmail,
             displayName: googleProfile.name,
             passwordHash: null,
             avatarUrl: googleProfile.picture
           });
 
-          await oauthRepo.create({
+          await this.oauthRepo.create({
             userId: user.id,
             provider: 'google',
             providerUserId: googleProfile.sub
@@ -217,7 +223,7 @@ class AuthService {
 
     try {
       const refreshTokenHash = hashToken(refreshToken);
-      const session = await sessionRepo.findValidByHash(refreshTokenHash);
+      const session = await this.sessionRepo.findValidByHash(refreshTokenHash);
 
       if (!session) {
         throw new Error('Invalid or expired refresh token');
@@ -227,7 +233,7 @@ class AuthService {
       const newRefreshTokenHash = hashToken(newRefreshToken);
       const newExpiresAt = getRefreshTokenExpiry();
 
-      await sessionRepo.rotate(session.id, newRefreshTokenHash, newExpiresAt);
+      await this.sessionRepo.rotate(session.id, newRefreshTokenHash, newExpiresAt);
 
       const user = {
         id: session.user_id,
@@ -259,7 +265,7 @@ class AuthService {
         throw new Error('No active session found');
       }
 
-      await sessionRepo.revoke(sessionId);
+      await this.sessionRepo.revoke(sessionId);
 
       logger.info({ sessionId }, 'User logged out successfully');
     } catch (error) {
@@ -275,7 +281,7 @@ class AuthService {
         throw new Error('User not authenticated');
       }
 
-      await sessionRepo.revokeAll(userId);
+      await this.sessionRepo.revokeAll(userId);
 
       logger.info({ userId }, 'All user sessions revoked successfully');
     } catch (error) {
@@ -291,7 +297,7 @@ class AuthService {
         throw new Error('User not authenticated');
       }
 
-      const user = await userRepo.findById(userId);
+      const user = await this.userRepo.findById(userId);
       if (!user) {
         throw new Error('User not found');
       }
@@ -309,7 +315,7 @@ class AuthService {
     const refreshTokenHash = hashToken(refreshToken);
     const expiresAt = getRefreshTokenExpiry();
 
-    const session = await sessionRepo.create({
+    const session = await this.sessionRepo.create({
       userId: user.id,
       refreshTokenHash,
       userAgent: context.get?.('User-Agent') || context.headers?.['user-agent'],
@@ -328,4 +334,4 @@ class AuthService {
   }
 }
 
-module.exports = new AuthService();
+module.exports = AuthService;

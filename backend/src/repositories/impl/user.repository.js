@@ -1,11 +1,14 @@
-const pool = require('@/database/config');
 const logger = require('@utils/logger').child({ module: 'userRepository' });
 
 class UserRepository {
+  constructor(pool) {
+    this.pool = pool;
+  }
+
   async findByEmail(email) {
     try {
       const query = 'SELECT * FROM users WHERE email = $1 AND is_active = true';
-      const result = await pool.query(query, [email.toLowerCase()]);
+      const result = await this.pool.query(query, [email.toLowerCase()]);
       return result.rows[0] || null;
     } catch (error) {
       logger.error({ err: error, email }, 'Failed to find user by email');
@@ -16,7 +19,7 @@ class UserRepository {
   async findById(id) {
     try {
       const query = 'SELECT * FROM users WHERE id = $1 AND is_active = true';
-      const result = await pool.query(query, [id]);
+      const result = await this.pool.query(query, [id]);
       return result.rows[0] || null;
     } catch (error) {
       logger.error({ err: error, id }, 'Failed to find user by id');
@@ -32,7 +35,7 @@ class UserRepository {
         RETURNING *
       `;
       const values = [email.toLowerCase(), displayName, passwordHash, avatarUrl];
-      const result = await pool.query(query, values);
+      const result = await this.pool.query(query, values);
 
       logger.info({ userId: result.rows[0].id }, 'User created successfully');
       return result.rows[0];
@@ -50,7 +53,7 @@ class UserRepository {
         WHERE id = $2 AND is_active = true
         RETURNING *
       `;
-      const result = await pool.query(query, [passwordHash, userId]);
+      const result = await this.pool.query(query, [passwordHash, userId]);
 
       if (result.rows.length === 0) {
         throw new Error('User not found or inactive');
@@ -82,7 +85,7 @@ class UserRepository {
       `;
 
       const values = [userId, ...fields.map(field => updates[field])];
-      const result = await pool.query(query, values);
+      const result = await this.pool.query(query, values);
 
       if (result.rows.length === 0) {
         throw new Error('User not found or inactive');
@@ -104,7 +107,7 @@ class UserRepository {
         WHERE id = $1
         RETURNING *
       `;
-      const result = await pool.query(query, [userId]);
+      const result = await this.pool.query(query, [userId]);
 
       if (result.rows.length === 0) {
         throw new Error('User not found');
@@ -130,7 +133,7 @@ class UserRepository {
         LIMIT $2
       `;
 
-      const result = await pool.query(query, [currentUserId, limit]);
+      const result = await this.pool.query(query, [currentUserId, limit]);
 
       return result.rows.map(row => ({
         id: row.id,
@@ -159,7 +162,7 @@ class UserRepository {
         LIMIT $3
       `;
       const searchTerm = `%${query}%`;
-      const result = await pool.query(searchQuery, [searchTerm, currentUserId, limit]);
+      const result = await this.pool.query(searchQuery, [searchTerm, currentUserId, limit]);
 
       logger.debug({ query, currentUserId, resultCount: result.rows.length }, 'User search completed');
 
@@ -174,6 +177,40 @@ class UserRepository {
       throw error;
     }
   }
+
+  async updateUserPresence(userId, status) {
+    try {
+      const result = await this.pool.query(
+        `INSERT INTO user_presence (user_id, status, last_seen, updated_at)
+         VALUES ($1, $2, NOW(), NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+         status = $2, last_seen = NOW(), updated_at = NOW()
+         RETURNING *`,
+        [userId, status]
+      );
+
+      return result.rows[0];
+    } catch (error) {
+      logger.error({ err: error, userId, status }, 'Failed to update user presence');
+      throw error;
+    }
+  }
+
+  async getUserPresence(userIds) {
+    try {
+      if (!userIds.length) return [];
+
+      const result = await this.pool.query(
+        'SELECT user_id, status, last_seen FROM user_presence WHERE user_id = ANY($1)',
+        [userIds]
+      );
+
+      return result.rows;
+    } catch (error) {
+      logger.error({ err: error, userIds }, 'Failed to get user presence');
+      throw error;
+    }
+  }
 }
 
-module.exports = new UserRepository();
+module.exports = UserRepository;
