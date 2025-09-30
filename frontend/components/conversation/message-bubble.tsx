@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input"
 import { MoreHorizontal, Edit, Trash2, Smile, Reply } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ReplyIndicator } from "./reply-indicator"
+import { ReactionPickerOverlay } from "./reaction-picker-overlay"
 import { getSenderName } from "@/lib/utils/chat"
 import { REACTION_EMOJIS } from "@/lib/utils/chat-constants"
 import { formatMessageTime, hasUserReacted, hasMessageContentChanged, getRepliedToMessage } from "@/lib/utils/message-utils"
+import { useCombinedGestures } from "@/hooks/use-combined-gestures"
 
 interface MessageBubbleProps {
     message: Message
@@ -29,6 +31,13 @@ export function MessageBubble({ message, isOwn, onReply, messages, conversation 
     const [value, setValue] = useState(message.content)
     const [showReactions, setShowReactions] = useState(false)
     const [showDropdown, setShowDropdown] = useState(false)
+    const [reactionOverlay, setReactionOverlay] = useState<{
+        visible: boolean
+        position: { x: number; y: number }
+    }>({
+        visible: false,
+        position: { x: 0, y: 0 }
+    })
 
     const time = formatMessageTime(message)
 
@@ -50,13 +59,70 @@ export function MessageBubble({ message, isOwn, onReply, messages, conversation 
         setShowReactions(false)
     }
 
+    // Gesture handlers
+    const handleSwipeToReply = () => {
+        console.log('[MessageBubble] Swipe to reply triggered for message:', message.id)
+        if (onReply && !editing) {
+            onReply(message)
+        }
+    }
+
+
+    const handleLongPressReact = (e: React.TouchEvent | React.MouseEvent) => {
+        if (editing) return
+        
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+
+        setReactionOverlay({
+            visible: true,
+            position: { x: clientX - 120, y: clientY - 60 } // Center picker on touch point
+        })
+        setShowReactions(false)
+        setShowDropdown(false)
+    }
+
+    const handleOverlayReactionSelect = (emoji: string) => {
+        handleReactionClick(emoji)
+        setReactionOverlay(prev => ({ ...prev, visible: false }))
+    }
+
+    const handleOverlayClose = () => {
+        setReactionOverlay(prev => ({ ...prev, visible: false }))
+    }
+
+    // Initialize combined gesture hook
+    const gestures = useCombinedGestures({
+        onSwipeReply: handleSwipeToReply,
+        onLongPressReact: handleLongPressReact,
+        disabled: editing
+    })
+
     const replyToMessage = getRepliedToMessage(message, messages)
 
     return (
-        <div className={cn("group relative w-full", isOwn && "flex justify-end")}>
-            <div className={cn("flex flex-col", isOwn && "items-end")}>
-                <div className={cn("flex gap-3", isOwn && "flex-row-reverse")}>
-                    <div className="flex flex-col min-w-0 max-w-xs lg:max-w-md">
+        <>
+            <div 
+                className={cn(
+                    "group relative w-full gesture-area",
+                    gestures.isPressed && "long-press-active",
+                    isOwn && "flex justify-end"
+                )}
+                ref={gestures.elementRef}
+                {...gestures.handlers}
+            >
+                {/* Swipe to reply visual feedback */}
+                <div 
+                    className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none opacity-0 transition-opacity duration-200"
+                    data-swipe-reply-icon
+                >
+                    <Reply className="h-5 w-5 text-primary" />
+                    <span className="text-sm text-primary font-medium">Reply</span>
+                </div>
+
+                <div className={cn("flex flex-col", isOwn && "items-end")}>
+                    <div className={cn("flex gap-3", isOwn && "flex-row-reverse")}>
+                        <div className="flex flex-col min-w-0 max-w-xs lg:max-w-md">
                         {/* Reply Indicator with strict width constraint */}
                         {replyToMessage && (
                             <ReplyIndicator
@@ -187,10 +253,10 @@ export function MessageBubble({ message, isOwn, onReply, messages, conversation 
                             return (
                                 <Button
                                     key={reaction.emoji}
-                                    size="sm"
+                                    size="default"
                                     variant="ghost"
                                     className={cn(
-                                        "h-6 px-2 py-0 text-xs rounded-full border transition-all duration-200",
+                                        "h-6 px-2 py-0 text-xs rounded-lg border transition-all duration-200",
                                         "hover:scale-105 hover:shadow-sm",
                                         userReacted 
                                             ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/20" 
@@ -206,5 +272,16 @@ export function MessageBubble({ message, isOwn, onReply, messages, conversation 
                 )}
             </div>
         </div>
+        
+        {/* Reaction Picker Overlay */}
+        <ReactionPickerOverlay
+            isVisible={reactionOverlay.visible}
+            position={reactionOverlay.position}
+            onReactionSelect={handleOverlayReactionSelect}
+            onClose={handleOverlayClose}
+            message={message}
+            userId={user?.id}
+        />
+    </>
     )
 }

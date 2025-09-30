@@ -74,7 +74,7 @@ export function MessageComposer({
                     className="mx-3"
                 />
             )}
-            <div className="border-t p-3">
+            <div className="p-3 pb-2">
                 <div className="flex items-center gap-2">
                     <Input
                         value={text}

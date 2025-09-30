@@ -75,9 +75,17 @@ export function ConversationView({
 
     const scrollToEnd = () => scrollToBottom(endRef)
 
+    // Auto-scroll to bottom when conversation initially loads
     useEffect(() => {
-        scrollToEnd()
-    }, [messages.length])
+        if (!messagesLoading && messages.length > 0) {
+            // Scroll to bottom when messages first load for this conversation
+            setTimeout(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+                }
+            }, 100)
+        }
+    }, [conversation.id, messagesLoading]) // Only when conversation changes or finishes loading
 
     const other = conversation.other_participant
     const otherPresence = other ? presence[other.id] : undefined
@@ -85,19 +93,22 @@ export function ConversationView({
     const presenceText = other ? getPresenceText(other, otherPresence) : "Offline"
 
     return (
-        <div className="flex h-full max-h-screen flex-col overflow-hidden">
-            <ConversationHeader
-                conversation={conversation}
-                presenceText={presenceText}
-                isOnline={isUserOnline(otherStatus)}
-                onBack={onBack}
-                onOpenSidebar={onOpenSidebar}
-            />
+        <div className="flex mobile-full-height mobile-no-overscroll min-h-0 flex-col overflow-hidden">
+            {/* Sticky Header */}
+            <div className="flex-shrink-0 bg-background border-b safe-area-top">
+                <ConversationHeader
+                    conversation={conversation}
+                    presenceText={presenceText}
+                    isOnline={isUserOnline(otherStatus)}
+                    onBack={onBack}
+                    onOpenSidebar={onOpenSidebar}
+                />
+            </div>
 
             {/* Scrollable Messages Area with Infinite Scroll */}
             <div 
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-3"
+                className="flex-1 overflow-y-auto px-3 py-2 min-h-0 smooth-scroll"
             >
                 <div className="space-y-2">
                     {/* Load more indicator at top */}
@@ -128,11 +139,12 @@ export function ConversationView({
                     )}
 
                     <TypingIndicator typingUserIds={conversationTyping[conversation.id] || []} />
-                    <div ref={endRef} />
+                    <div ref={endRef} className="h-0" />
                 </div>
             </div>
 
-            <div className="flex-shrink-0">
+            {/* Sticky Composer */}
+            <div className="flex-shrink-0 bg-background border-t">
                 <MessageComposer
                     disabled={!wsConnected}
                     onSend={send}

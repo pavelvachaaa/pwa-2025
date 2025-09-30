@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://localhost:3001', "https://chat.pavel-vacha.cz"],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.1.123:3001', '*', "https://chat.pavel-vacha.cz"],
   credentials: true
 }
 

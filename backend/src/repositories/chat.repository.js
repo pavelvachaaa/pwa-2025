@@ -175,7 +175,7 @@ class ChatRepository {
     return result.rows[0];
   }
 
-  async getMessagesForConversation(conversationId, userId, limit = 50, offset = 0) {
+  async getMessagesForConversation(conversationId, userId, limit = 10, offset = 0) {
     // First verify user is participant (check if user is either user_a or user_b)
     const participantCheck = await pool.query(
       'SELECT 1 FROM conversations WHERE id = $1::uuid AND (user_a_id = $2::uuid OR user_b_id = $2::uuid)',
@@ -221,7 +221,7 @@ class ChatRepository {
       LIMIT $3 OFFSET $4
     `, [conversationId, userId, limit, offset]);
 
-    return result.rows.reverse(); // Return in chronological order
+    return result.rows; // Return newest first for pagination
   }
 
   async getMessageById(messageId, userId) {

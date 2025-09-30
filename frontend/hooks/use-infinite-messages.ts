@@ -43,7 +43,7 @@ export function useInfiniteMessages(conversationId: string): UseInfiniteMessages
     
     try {
       const messages = await loadMessages(conversationId, MESSAGES_PER_PAGE, 0)
-      setMessages(messages.reverse()) // Reverse to show newest at bottom
+      setMessages(messages.reverse()) // Backend returns newest first, we want oldest first for display
       setOffset(messages.length)
       setHasMore(messages.length === MESSAGES_PER_PAGE)
     } catch (error) {
