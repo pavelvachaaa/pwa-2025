@@ -21,9 +21,8 @@ export class WSEventManager {
   }
 
   emit(event: string, data: any): void {
-    console.log('🔔 [EventManager] Emitting event:', event, 'Data:', data, 'Handlers:', this.getHandlerCount(event));
     const handlers = this.eventHandlers.get(event)
-    if (handlers) {
+    if (handlers && handlers.size > 0) {
       handlers.forEach((handler) => {
         try {
           handler(data)
@@ -32,7 +31,10 @@ export class WSEventManager {
         }
       })
     } else {
-      console.log('❌ [EventManager] No handlers registered for event:', event);
+      const ignoredEvents = ['conversation:joined', 'reconnect_attempt', 'reconnect_error']
+      if (!ignoredEvents.includes(event)) {
+        console.warn('[EventManager] No handlers registered for event:', event);
+      }
     }
   }
 

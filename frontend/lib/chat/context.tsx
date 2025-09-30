@@ -337,10 +337,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, user?.id, user?.display_name])
 
-  // WebSocket event handlers
+  // WebSocket event handlers - Always registered to handle reconnection
   useEffect(() => {
-    if (!wsConnected) return
-
     const handleError = (data: any) => {
       console.error('[Chat] WebSocket error:', data)
     }
@@ -348,6 +346,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const handleConnected = () => {
       console.log('[Chat] WebSocket connected')
       setWsConnected(true)
+    }
+
+    const handleReconnected = () => {
+      console.log('[Chat] WebSocket reconnected')
+      setWsConnected(true)
+      // Reload conversations to catch up on any missed updates
+      loadConversations()
     }
 
     const handleDisconnected = () => {
@@ -364,31 +369,67 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
         return [conversation, ...prev]
       })
+
+      // Auto-join the conversation room so we receive message events
+      wsClient.chat.joinConversation(conversation.id)
     }
 
     const handleConversationMarkedRead = (conversationId: string, userId: string, readAt: Date) => {
       console.log('[Chat] Conversation marked as read, updating unread count:', { conversationId, userId, readAt })
-      setConversations(prev => prev.map(conv => 
-        conv.id === conversationId 
+      setConversations(prev => prev.map(conv =>
+        conv.id === conversationId
           ? { ...conv, unread_count: 0 }
           : conv
       ))
     }
 
+    const handleNewMessage = (message: any, conversationId: string) => {
+      console.log('[Chat] New message received, updating sidebar:', { message, conversationId })
+      setConversations(prev => {
+        const updated = prev.map(conv => {
+          if (conv.id === conversationId) {
+            return {
+              ...conv,
+              last_message: {
+                content: message.content,
+                created_at: message.created_at
+              },
+              last_message_at: message.created_at,
+              unread_count: message.sender_id !== user?.id ? (conv.unread_count || 0) + 1 : conv.unread_count
+            }
+          }
+          return conv
+        })
+
+        // Sort: pinned first, then by last message time
+        return updated.sort((a, b) => {
+          if (a.is_pinned && !b.is_pinned) return -1
+          if (!a.is_pinned && b.is_pinned) return 1
+          const timeA = new Date(a.last_message_at || 0).getTime()
+          const timeB = new Date(b.last_message_at || 0).getTime()
+          return timeB - timeA
+        })
+      })
+    }
+
     const unsubscribeError = wsClient.onError(handleError)
     const unsubscribeConnected = wsClient.onConnected(handleConnected)
+    const unsubscribeReconnected = wsClient.onReconnected(handleReconnected)
     const unsubscribeDisconnected = wsClient.onDisconnected(handleDisconnected)
     const unsubscribeConversationCreated = onConversationCreated(handleConversationCreated)
     const unsubscribeConversationMarkedRead = onConversationMarkedRead(handleConversationMarkedRead)
+    const unsubscribeNewMessage = onNewMessage(handleNewMessage)
 
     return () => {
       unsubscribeError()
       unsubscribeConnected()
+      unsubscribeReconnected()
       unsubscribeDisconnected()
       unsubscribeConversationCreated()
       unsubscribeConversationMarkedRead()
+      unsubscribeNewMessage()
     }
-  }, [wsConnected, onConversationCreated, onConversationMarkedRead])
+  }, [onConversationCreated, onConversationMarkedRead, onNewMessage, loadConversations, user?.id])
 
   return (
     <ChatContext.Provider

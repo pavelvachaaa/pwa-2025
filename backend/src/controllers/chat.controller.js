@@ -56,12 +56,15 @@ class ChatController {
       const result = await this.chatService.createConversation(userId, targetUserId);
 
       if (this.wsGateway) {
+        const conversationForInitiator = await this.chatService.getConversationById(result.conversation.id, userId);
+        const conversationForTarget = await this.chatService.getConversationById(result.conversation.id, targetUserId);
+
         this.wsGateway.sendToUser(userId, 'conversation:created', {
-          conversation: result.conversation,
+          conversation: conversationForInitiator,
           isInitiator: true
         });
         this.wsGateway.sendToUser(targetUserId, 'conversation:created', {
-          conversation: result.conversation,
+          conversation: conversationForTarget,
           isInitiator: false
         });
 

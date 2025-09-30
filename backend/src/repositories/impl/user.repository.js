@@ -122,13 +122,20 @@ class UserRepository {
 
   async getAllUsers(currentUserId, limit = 20) {
     try {
-      this.logger.info({currentUserId, limit}, "Zde");
+      this.logger.info({currentUserId, limit}, "Getting all users with presence");
       const query = `
-        SELECT id, email, display_name, avatar_url
-        FROM users
-        WHERE is_active = true
-        AND id != $1
-        ORDER BY display_name
+        SELECT
+          u.id,
+          u.email,
+          u.display_name,
+          u.avatar_url,
+          COALESCE(up.status, 'offline') as status,
+          up.last_seen
+        FROM users u
+        LEFT JOIN user_presence up ON u.id = up.user_id
+        WHERE u.is_active = true
+        AND u.id != $1
+        ORDER BY u.display_name
         LIMIT $2
       `;
 
@@ -138,7 +145,9 @@ class UserRepository {
         id: row.id,
         email: row.email,
         display_name: row.display_name,
-        avatar_url: row.avatar_url
+        avatar_url: row.avatar_url,
+        status: row.status,
+        last_seen: row.last_seen
       }));
     } catch (error) {
       this.logger.error({ error: error.message, currentUserId }, 'Error getting all users');
@@ -149,15 +158,22 @@ class UserRepository {
   async searchUsers(query, currentUserId, limit = 20) {
     try {
       const searchQuery = `
-        SELECT id, email, display_name, avatar_url
-        FROM users
-        WHERE is_active = true
-        AND id != $2
+        SELECT
+          u.id,
+          u.email,
+          u.display_name,
+          u.avatar_url,
+          COALESCE(up.status, 'offline') as status,
+          up.last_seen
+        FROM users u
+        LEFT JOIN user_presence up ON u.id = up.user_id
+        WHERE u.is_active = true
+        AND u.id != $2
         AND (
-          display_name ILIKE $1
-          OR email ILIKE $1
+          u.display_name ILIKE $1
+          OR u.email ILIKE $1
         )
-        ORDER BY display_name
+        ORDER BY u.display_name
         LIMIT $3
       `;
       const searchTerm = `%${query}%`;
@@ -169,7 +185,9 @@ class UserRepository {
         id: row.id,
         email: row.email,
         display_name: row.display_name,
-        avatar_url: row.avatar_url
+        avatar_url: row.avatar_url,
+        status: row.status,
+        last_seen: row.last_seen
       }));
     } catch (error) {
       this.logger.error({ err: error, query, currentUserId }, 'Failed to search users');

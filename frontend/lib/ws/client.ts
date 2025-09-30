@@ -59,6 +59,11 @@ export class WebSocketClient {
     return () => this.eventManager.off('disconnected', handler)
   }
 
+  onReconnected(handler: () => void): () => void {
+    this.eventManager.on('reconnected', handler)
+    return () => this.eventManager.off('reconnected', handler)
+  }
+
   onError(handler: (data: { message: string }) => void): () => void {
     this.eventManager.on('error', handler)
     return () => this.eventManager.off('error', handler)
@@ -84,6 +89,10 @@ export class WebSocketClient {
       'disconnect': (reason) => {
         console.log('[WS] Connection lost:', reason)
         this.eventManager.emit('disconnected', { reason })
+      },
+      'reconnect': () => {
+        console.log('[WS] Reconnected successfully')
+        this.eventManager.emit('reconnected', {})
       }
     })
 

@@ -63,6 +63,24 @@ export class WSConnection {
           this.isConnecting = false
           console.log('[WS] Disconnected:', reason)
         })
+
+        this.socket!.on('reconnect', (attemptNumber) => {
+          this.isConnecting = false
+          console.log('[WS] Reconnected after', attemptNumber, 'attempts')
+        })
+
+        this.socket!.on('reconnect_attempt', (attemptNumber) => {
+          console.log('[WS] Reconnection attempt', attemptNumber)
+        })
+
+        this.socket!.on('reconnect_failed', () => {
+          this.isConnecting = false
+          console.error('[WS] Reconnection failed after max attempts')
+        })
+
+        this.socket!.on('reconnect_error', (error) => {
+          console.error('[WS] Reconnection error:', error)
+        })
       })
     } catch (error) {
       this.isConnecting = false
