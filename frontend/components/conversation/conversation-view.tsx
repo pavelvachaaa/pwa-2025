@@ -16,6 +16,8 @@ import { usePresence } from "@/hooks/use-presence"
 import { useTypingIndicator } from "@/hooks/use-typing-indicator"
 import { useReply } from "@/hooks/use-reply"
 import { scrollToBottom, getUserPresenceStatus, isUserOnline } from "@/lib/utils/ui-utils"
+import { ScrollToBottom } from "./scroll-to-bottom"
+import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom"
 
 interface ConversationViewProps {
     conversation: Conversation
@@ -58,6 +60,7 @@ export function ConversationView({
     const conversationTyping = useTypingIndicator(currentUserId, user?.id)
     const { replyingTo, setReplyingTo, clearReply } = useReply()
     const endRef = useRef<HTMLDivElement>(null)
+    const { showScrollButton, scrollToBottom: scrollToBottomSmooth } = useScrollToBottom(scrollRef)
 
 
     useEffect(() => {
@@ -73,12 +76,8 @@ export function ConversationView({
         clearReply()
     }
 
-    const scrollToEnd = () => scrollToBottom(endRef)
-
-    // Auto-scroll to bottom when conversation initially loads
     useEffect(() => {
         if (!messagesLoading && messages.length > 0) {
-            // Scroll to bottom when messages first load for this conversation
             setTimeout(() => {
                 if (scrollRef.current) {
                     scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -108,7 +107,7 @@ export function ConversationView({
             {/* Scrollable Messages Area with Infinite Scroll */}
             <div 
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto px-3 py-2 min-h-0 smooth-scroll"
+                className="flex-1 overflow-y-auto px-3 py-2 min-h-0 smooth-scroll relative"
             >
                 <div className="space-y-2">
                     {/* Load more indicator at top */}
@@ -141,6 +140,15 @@ export function ConversationView({
                     <TypingIndicator typingUserIds={conversationTyping[conversation.id] || []} />
                     <div ref={endRef} className="h-0" />
                 </div>
+
+            </div>
+
+            {/* Scroll to Bottom Button - Above composer */}
+            <div className="relative pb-3">
+                <ScrollToBottom 
+                    isVisible={showScrollButton}
+                    onClick={scrollToBottomSmooth}
+                />
             </div>
 
             {/* Sticky Composer */}

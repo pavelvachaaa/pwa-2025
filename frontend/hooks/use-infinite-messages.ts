@@ -43,7 +43,13 @@ export function useInfiniteMessages(conversationId: string): UseInfiniteMessages
     
     try {
       const messages = await loadMessages(conversationId, MESSAGES_PER_PAGE, 0)
-      setMessages(messages.reverse()) // Backend returns newest first, we want oldest first for display
+      const reversedMessages = messages.reverse() 
+      
+      const uniqueMessages = reversedMessages.filter((msg, index, arr) => 
+        arr.findIndex(m => m.id === msg.id) === index
+      )
+      
+      setMessages(uniqueMessages)
       setOffset(messages.length)
       setHasMore(messages.length === MESSAGES_PER_PAGE)
     } catch (error) {
@@ -72,7 +78,12 @@ export function useInfiniteMessages(conversationId: string): UseInfiniteMessages
       const olderMessages = await loadMessages(conversationId, MESSAGES_PER_PAGE, offset)
       const reversedMessages = olderMessages.reverse()
       
-      setMessages(prev => [...reversedMessages, ...prev]) // Prepend older messages
+      setMessages(prev => {
+        // Filter out any messages that already exist to prevent duplicates
+        const existingIds = new Set(prev.map(m => m.id))
+        const newMessages = reversedMessages.filter(m => !existingIds.has(m.id))
+        return [...newMessages, ...prev]
+      })
       setOffset(prev => prev + olderMessages.length)
       setHasMore(olderMessages.length === MESSAGES_PER_PAGE)
     } catch (error) {
@@ -120,7 +131,13 @@ export function useInfiniteMessages(conversationId: string): UseInfiniteMessages
   useEffect(() => {
     const offNew = onNewMessage((msg, cid) => {
       if (cid === conversationId) {
-        setMessages(prev => [...prev, msg])
+        setMessages(prev => {
+          // Check if message already exists to prevent duplicates
+          if (prev.some(m => m.id === msg.id)) {
+            return prev
+          }
+          return [...prev, msg]
+        })
         
         // Auto-scroll to bottom for new messages if user is near bottom
         setTimeout(() => {
